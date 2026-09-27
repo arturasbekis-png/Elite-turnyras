@@ -110,66 +110,22 @@ h2{
   font-size:23px
 }
 
-label{
+.registration-button{
   display:block;
-  font-weight:700;
-  font-size:14px;
-  margin:13px 0 6px
-}
-
-input,textarea{
   width:100%;
-  padding:12px 13px;
-  border:1px solid #cbd3dd;
-  border-radius:9px;
-  font-size:16px;
-  background:#fff
-}
-
-textarea{
-  min-height:80px;
-  resize:vertical
-}
-
-input:focus,textarea:focus{
-  outline:2px solid #5d42e8;
-  border-color:#5d42e8
-}
-
-.consent{
-  display:flex;
-  gap:9px;
-  align-items:flex-start;
-  font-weight:400;
-  margin:16px 0
-}
-
-.consent input{
-  width:18px;
-  height:18px;
-  margin-top:1px;
-  flex:none
-}
-
-button{
-  width:100%;
-  border:0;
-  border-radius:11px;
-  padding:14px 18px;
+  padding:16px 20px;
   background:linear-gradient(90deg,#f5c400,#ff8a00);
   color:#071d3b;
-  font-size:17px;
+  text-decoration:none;
+  font-size:18px;
   font-weight:900;
-  cursor:pointer
+  border-radius:11px;
+  text-align:center;
+  box-shadow:0 5px 15px rgba(0,0,0,.12);
 }
 
-button:hover{
+.registration-button:hover{
   filter:brightness(.97)
-}
-
-button:disabled{
-  opacity:.65;
-  cursor:wait
 }
 
 .note{
@@ -177,17 +133,6 @@ button:disabled{
   font-size:12px;
   color:#596575;
   margin-top:12px
-}
-
-.status{
-  text-align:center;
-  font-weight:700;
-  margin-top:12px;
-  min-height:20px
-}
-
-#submitFrame{
-  display:none;
 }
 
 @media(max-width:520px){
@@ -217,7 +162,6 @@ button:disabled{
 <body>
 
 <div class="overlay">
-
 <main class="page">
 
 <header class="header">
@@ -242,121 +186,23 @@ button:disabled{
 
   <h2>Registracija</h2>
 
-  <form
-    id="registrationForm"
-    action="https://script.google.com/macros/s/AKfycbxRcv5BciCcfFeKlDNwNGgO7Eq_rEp4-GftI0i8tcrXXSltmS70qE6VtPunap4tTFeEYA/exec"
-    method="POST"
-    target="submitFrame"
+  <a
+    href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAN__iaUIAhUNlkxTTZTOVo3RVdEWktaRTFMSFhVRFBHNS4u"
+    target="_blank"
+    rel="noopener noreferrer"
+    class="registration-button"
   >
+    REGISTRUOTIS Į TURNYRĄ
+  </a>
 
-    <label for="phone">Telefono numeris *</label>
-    <input
-      id="phone"
-      name="phone"
-      type="tel"
-      required
-    >
-
-    <label for="player1">Žaidėjas 1 *</label>
-    <input
-      id="player1"
-      name="player1"
-      type="text"
-      required
-    >
-
-    <label for="player2">Žaidėjas 2 *</label>
-    <input
-      id="player2"
-      name="player2"
-      type="text"
-      required
-    >
-
-    <label for="notes">Pastabos</label>
-    <textarea
-      id="notes"
-      name="notes"
-    ></textarea>
-
-    <label class="consent">
-      <input
-        type="checkbox"
-        name="Sutikimas"
-        value="Taip"
-        required
-      >
-
-      <span>
-        Patvirtinu, kad pateikti duomenys yra teisingi.
-      </span>
-    </label>
-
-    <button id="submitBtn" type="submit">
-      REGISTRUOTIS
-    </button>
-
-    <div id="status" class="status" aria-live="polite"></div>
-
-    <div class="note">
-      Registracija bus išsiųsta turnyro organizatoriui.
-    </div>
-
-  </form>
+  <div class="note">
+    Paspaudę mygtuką būsite nukreipti į registracijos formą.
+  </div>
 
 </section>
 
 </main>
-
 </div>
-
-<!-- Paslėptas langas Google Apps Script atsakymui -->
-<iframe
-  name="submitFrame"
-  id="submitFrame"
-></iframe>
-
-<script>
-
-const form = document.getElementById('registrationForm');
-const btn = document.getElementById('submitBtn');
-const status = document.getElementById('status');
-const frame = document.getElementById('submitFrame');
-
-let submitted = false;
-
-form.addEventListener('submit', function(){
-
-  if(!form.checkValidity()){
-    return;
-  }
-
-  submitted = true;
-
-  btn.disabled = true;
-  btn.textContent = 'SIUNČIAMA...';
-
-  status.textContent = 'Registruojama...';
-
-  /*
-    Laukiame, kol Google Apps Script gaus registraciją.
-    Tada nukreipiame į padėkos puslapį.
-  */
-
-  setTimeout(function(){
-
-    if(submitted){
-
-      window.location.href =
-        'https://arturasbekis-png.github.io/Elite-turnyras/aciu.html';
-
-    }
-
-  }, 2000);
-
-});
-
-</script>
 
 </body>
 </html>
