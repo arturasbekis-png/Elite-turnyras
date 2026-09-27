@@ -4,9 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>ELITE – Paplūdimio tinklinio turnyras</title>
+
 <style>
 *{box-sizing:border-box}
-html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
+
+html,body{
+  margin:0;
+  min-height:100%;
+  font-family:Arial,Helvetica,sans-serif
+}
+
 body{
   min-height:100vh;
   background:
@@ -16,44 +23,203 @@ body{
     linear-gradient(135deg,#071d3b 0%,#173b72 42%,#5d176f 72%,#071d3b 100%);
   color:#10233f;
 }
+
 body:before{
-  content:"";position:fixed;inset:0;pointer-events:none;
-  background:linear-gradient(120deg,rgba(255,255,255,.08),transparent 35%,rgba(255,255,255,.06));
+  content:"";
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  background:linear-gradient(
+    120deg,
+    rgba(255,255,255,.08),
+    transparent 35%,
+    rgba(255,255,255,.06)
+  );
 }
-.overlay{min-height:100vh;padding:28px 16px 40px}
-.page{max-width:620px;margin:0 auto}
-.header{text-align:center;margin-bottom:18px;color:#fff}
-.logo{font-size:42px;font-weight:1000;letter-spacing:8px;text-shadow:0 4px 20px rgba(0,0,0,.3)}
-.title{font-size:29px;font-weight:900;margin:8px 0 4px}
-.subtitle{font-size:17px;font-weight:600}
+
+.overlay{
+  min-height:100vh;
+  padding:28px 16px 40px
+}
+
+.page{
+  max-width:620px;
+  margin:0 auto
+}
+
+.header{
+  text-align:center;
+  margin-bottom:18px;
+  color:#fff
+}
+
+.logo{
+  font-size:42px;
+  font-weight:1000;
+  letter-spacing:8px;
+  text-shadow:0 4px 20px rgba(0,0,0,.3)
+}
+
+.title{
+  font-size:29px;
+  font-weight:900;
+  margin:8px 0 4px
+}
+
+.subtitle{
+  font-size:17px;
+  font-weight:600
+}
+
 .card{
-  background:rgba(255,255,255,.96);border-radius:20px;padding:24px;
+  background:rgba(255,255,255,.96);
+  border-radius:20px;
+  padding:24px;
   box-shadow:0 18px 50px rgba(0,0,0,.28);
   border:1px solid rgba(255,255,255,.8)
 }
-.info{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:22px}
-.info div{background:linear-gradient(135deg,#eef5ff,#f7eefb);border-radius:12px;padding:13px 8px;text-align:center}
-.info strong{display:block;font-size:15px;color:#071d3b}.info span{display:block;font-size:14px;margin-top:4px}
-h2{margin:0 0 16px;font-size:23px}
-label{display:block;font-weight:700;font-size:14px;margin:13px 0 6px}
-input,textarea{width:100%;padding:12px 13px;border:1px solid #cbd3dd;border-radius:9px;font-size:16px;background:#fff}
-textarea{min-height:80px;resize:vertical}
-input:focus,textarea:focus{outline:2px solid #5d42e8;border-color:#5d42e8}
-.consent{display:flex;gap:9px;align-items:flex-start;font-weight:400;margin:16px 0}
-.consent input{width:18px;height:18px;margin-top:1px;flex:none}
-button{width:100%;border:0;border-radius:11px;padding:14px 18px;background:linear-gradient(90deg,#f5c400,#ff8a00);color:#071d3b;font-size:17px;font-weight:900;cursor:pointer}
-button:hover{filter:brightness(.97)}
-button:disabled{opacity:.65;cursor:wait}
-.note{text-align:center;font-size:12px;color:#596575;margin-top:12px}
-.status{text-align:center;font-weight:700;margin-top:12px;min-height:20px}
+
+.info{
+  display:grid;
+  grid-template-columns:repeat(2,1fr);
+  gap:10px;
+  margin-bottom:22px
+}
+
+.info div{
+  background:linear-gradient(135deg,#eef5ff,#f7eefb);
+  border-radius:12px;
+  padding:13px 8px;
+  text-align:center
+}
+
+.info strong{
+  display:block;
+  font-size:15px;
+  color:#071d3b
+}
+
+.info span{
+  display:block;
+  font-size:14px;
+  margin-top:4px
+}
+
+h2{
+  margin:0 0 16px;
+  font-size:23px
+}
+
+label{
+  display:block;
+  font-weight:700;
+  font-size:14px;
+  margin:13px 0 6px
+}
+
+input,textarea{
+  width:100%;
+  padding:12px 13px;
+  border:1px solid #cbd3dd;
+  border-radius:9px;
+  font-size:16px;
+  background:#fff
+}
+
+textarea{
+  min-height:80px;
+  resize:vertical
+}
+
+input:focus,textarea:focus{
+  outline:2px solid #5d42e8;
+  border-color:#5d42e8
+}
+
+.consent{
+  display:flex;
+  gap:9px;
+  align-items:flex-start;
+  font-weight:400;
+  margin:16px 0
+}
+
+.consent input{
+  width:18px;
+  height:18px;
+  margin-top:1px;
+  flex:none
+}
+
+button{
+  width:100%;
+  border:0;
+  border-radius:11px;
+  padding:14px 18px;
+  background:linear-gradient(90deg,#f5c400,#ff8a00);
+  color:#071d3b;
+  font-size:17px;
+  font-weight:900;
+  cursor:pointer
+}
+
+button:hover{
+  filter:brightness(.97)
+}
+
+button:disabled{
+  opacity:.65;
+  cursor:wait
+}
+
+.note{
+  text-align:center;
+  font-size:12px;
+  color:#596575;
+  margin-top:12px
+}
+
+.status{
+  text-align:center;
+  font-weight:700;
+  margin-top:12px;
+  min-height:20px
+}
+
+#submitFrame{
+  display:none;
+}
+
 @media(max-width:520px){
-  .overlay{padding:18px 10px 30px}.card{padding:18px}.logo{font-size:34px}.title{font-size:23px}.info{grid-template-columns:1fr}
+  .overlay{
+    padding:18px 10px 30px
+  }
+
+  .card{
+    padding:18px
+  }
+
+  .logo{
+    font-size:34px
+  }
+
+  .title{
+    font-size:23px
+  }
+
+  .info{
+    grid-template-columns:1fr
+  }
 }
 </style>
 </head>
+
 <body>
+
 <div class="overlay">
+
 <main class="page">
+
 <header class="header">
   <div class="logo">ELITE</div>
   <div class="title">Paplūdimio tinklinio turnyras</div>
@@ -61,53 +227,136 @@ button:disabled{opacity:.65;cursor:wait}
 </header>
 
 <section class="card">
+
   <div class="info">
-    <div><strong>DATA</strong><span>Spalio 11 d.</span></div>
-    <div><strong>LAIKAS</strong><span>10:00–13:00</span></div>
+    <div>
+      <strong>DATA</strong>
+      <span>Spalio 11 d.</span>
+    </div>
+
+    <div>
+      <strong>LAIKAS</strong>
+      <span>10:00–13:00</span>
+    </div>
   </div>
 
   <h2>Registracija</h2>
 
-  <form id="registrationForm" action="https://script.google.com/macros/s/AKfycbxM_muFhGAKxIqXBavVNyreuis8UUfhaV6e55ZE0aeQGTtOMWj96DjkdMNChI-07O1t6w/exec" method="POST">
-    <input type="hidden" name="_subject" value="Nauja ELITE turnyro registracija">
-    <input type="hidden" name="_next" value="https://arturasbekis-png.github.io/Elite-turnyras/aciu.html">
+  <form
+    id="registrationForm"
+    action="https://script.google.com/macros/s/AKfycbxRcv5BciCcfFeKlDNwNGgO7Eq_rEp4-GftI0i8tcrXXSltmS70qE6VtPunap4tTFeEYA/exec"
+    method="POST"
+    target="submitFrame"
+  >
 
     <label for="phone">Telefono numeris *</label>
-    <input id="phone" name="phone" type="tel" required>
+    <input
+      id="phone"
+      name="phone"
+      type="tel"
+      required
+    >
 
     <label for="player1">Žaidėjas 1 *</label>
-    <input id="player1" name="player1" type="text" required>
+    <input
+      id="player1"
+      name="player1"
+      type="text"
+      required
+    >
 
     <label for="player2">Žaidėjas 2 *</label>
-    <input id="player2" name="player2" type="text" required>
+    <input
+      id="player2"
+      name="player2"
+      type="text"
+      required
+    >
 
     <label for="notes">Pastabos</label>
-    <textarea id="notes" name="notes"></textarea>
+    <textarea
+      id="notes"
+      name="notes"
+    ></textarea>
 
     <label class="consent">
-      <input type="checkbox" name="Sutikimas" value="Taip" required>
-      <span>Patvirtinu, kad pateikti duomenys yra teisingi.</span>
+      <input
+        type="checkbox"
+        name="Sutikimas"
+        value="Taip"
+        required
+      >
+
+      <span>
+        Patvirtinu, kad pateikti duomenys yra teisingi.
+      </span>
     </label>
 
-    <button id="submitBtn" type="submit">REGISTRUOTIS</button>
+    <button id="submitBtn" type="submit">
+      REGISTRUOTIS
+    </button>
+
     <div id="status" class="status" aria-live="polite"></div>
-    <div class="note">Registracija bus išsiųsta turnyro organizatoriui.</div>
+
+    <div class="note">
+      Registracija bus išsiųsta turnyro organizatoriui.
+    </div>
+
   </form>
+
 </section>
+
 </main>
+
 </div>
 
-<script>
-const form=document.getElementById('registrationForm');
-const btn=document.getElementById('submitBtn');
-const status=document.getElementById('status');
+<!-- Paslėptas langas Google Apps Script atsakymui -->
+<iframe
+  name="submitFrame"
+  id="submitFrame"
+></iframe>
 
-form.addEventListener('submit',()=>{
-  if(!form.checkValidity()) return;
-  btn.disabled=true;
-  btn.textContent='SIUNČIAMA...';
-  status.textContent='';
+<script>
+
+const form = document.getElementById('registrationForm');
+const btn = document.getElementById('submitBtn');
+const status = document.getElementById('status');
+const frame = document.getElementById('submitFrame');
+
+let submitted = false;
+
+form.addEventListener('submit', function(){
+
+  if(!form.checkValidity()){
+    return;
+  }
+
+  submitted = true;
+
+  btn.disabled = true;
+  btn.textContent = 'SIUNČIAMA...';
+
+  status.textContent = 'Registruojama...';
+
+  /*
+    Laukiame, kol Google Apps Script gaus registraciją.
+    Tada nukreipiame į padėkos puslapį.
+  */
+
+  setTimeout(function(){
+
+    if(submitted){
+
+      window.location.href =
+        'https://arturasbekis-png.github.io/Elite-turnyras/aciu.html';
+
+    }
+
+  }, 2000);
+
 });
+
 </script>
+
 </body>
 </html>
