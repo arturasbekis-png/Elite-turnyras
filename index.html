@@ -68,34 +68,28 @@ button:disabled{opacity:.65;cursor:wait}
 
   <h2>Registracija</h2>
 
-  <form id="registrationForm" action="https://formsubmit.co/arturas.bekis@gmail.com" method="POST">
+  <form id="registrationForm" action="https://formspree.io/f/moevkzpp" method="POST">
     <input type="hidden" name="_subject" value="Nauja ELITE turnyro registracija">
-    <input type="hidden" name="_next" value="https://auksma-turnyras.netlify.app/aciu.html">
-    <input type="hidden" name="_template" value="table">
-    <input type="hidden" name="_captcha" value="false">
-    <input type="text" name="_honey" style="display:none">
-
-    <label for="team">Komandos pavadinimas *</label>
-    <input id="team" name="Komandos pavadinimas" type="text" required>
+    <input type="hidden" name="_next" value="https://arturasbekis-png.github.io/elite-turnyras/aciu.html">
 
     <label for="phone">Telefono numeris *</label>
-    <input id="phone" name="Telefono numeris" type="tel" required>
+    <input id="phone" name="phone" type="tel" required>
 
     <label for="player1">Žaidėjas 1 *</label>
-    <input id="player1" name="Žaidėjas 1" type="text" required>
+    <input id="player1" name="player1" type="text" required>
 
     <label for="player2">Žaidėjas 2 *</label>
-    <input id="player2" name="Žaidėjas 2" type="text" required>
+    <input id="player2" name="player2" type="text" required>
 
     <label for="notes">Pastabos</label>
-    <textarea id="notes" name="Pastabos"></textarea>
+    <textarea id="notes" name="notes"></textarea>
 
     <label class="consent">
       <input type="checkbox" name="Sutikimas" value="Taip" required>
       <span>Patvirtinu, kad pateikti duomenys yra teisingi.</span>
     </label>
 
-    <button id="submitBtn" type="submit">REGISTRUOTI KOMANDĄ</button>
+    <button id="submitBtn" type="submit">REGISTRUOTIS</button>
     <div id="status" class="status" aria-live="polite"></div>
     <div class="note">Registracija bus išsiųsta turnyro organizatoriui.</div>
   </form>
@@ -107,6 +101,7 @@ button:disabled{opacity:.65;cursor:wait}
 const form=document.getElementById('registrationForm');
 const btn=document.getElementById('submitBtn');
 const status=document.getElementById('status');
+
 form.addEventListener('submit',()=>{
   if(!form.checkValidity()) return;
   btn.disabled=true;
