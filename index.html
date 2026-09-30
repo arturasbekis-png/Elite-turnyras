@@ -3,206 +3,257 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ELITE – Paplūdimio tinklinio turnyras</title>
-
+<title>ELITE – Paplūdimio tinklinio turnyrų sezonas</title>
+<meta name="description" content="ELITE paplūdimio tinklinio turnyrų sezono kalendorius ir registracija.">
 <style>
 *{box-sizing:border-box}
-
-html,body{
-  margin:0;
-  min-height:100%;
-  font-family:Arial,Helvetica,sans-serif
-}
-
-body{
-  min-height:100vh;
-  background:
-    radial-gradient(circle at 15% 15%, rgba(0,210,255,.42), transparent 32%),
-    radial-gradient(circle at 85% 20%, rgba(255,0,153,.38), transparent 30%),
-    radial-gradient(circle at 50% 90%, rgba(255,193,7,.35), transparent 35%),
-    linear-gradient(135deg,#071d3b 0%,#173b72 42%,#5d176f 72%,#071d3b 100%);
-  color:#10233f;
-}
-
-body:before{
-  content:"";
-  position:fixed;
-  inset:0;
-  pointer-events:none;
-  background:linear-gradient(
-    120deg,
-    rgba(255,255,255,.08),
-    transparent 35%,
-    rgba(255,255,255,.06)
-  );
-}
-
-.overlay{
-  min-height:100vh;
-  padding:28px 16px 40px
-}
-
-.page{
-  max-width:620px;
-  margin:0 auto
-}
-
-.header{
-  text-align:center;
-  margin-bottom:18px;
-  color:#fff
-}
-
-.logo{
-  font-size:42px;
-  font-weight:1000;
-  letter-spacing:8px;
-  text-shadow:0 4px 20px rgba(0,0,0,.3)
-}
-
-.title{
-  font-size:29px;
-  font-weight:900;
-  margin:8px 0 4px
-}
-
-.subtitle{
-  font-size:17px;
-  font-weight:600
-}
-
-.card{
-  background:rgba(255,255,255,.96);
-  border-radius:20px;
-  padding:24px;
-  box-shadow:0 18px 50px rgba(0,0,0,.28);
-  border:1px solid rgba(255,255,255,.8)
-}
-
-.info{
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:10px;
-  margin-bottom:22px
-}
-
-.info div{
-  background:linear-gradient(135deg,#eef5ff,#f7eefb);
-  border-radius:12px;
-  padding:13px 8px;
-  text-align:center
-}
-
-.info strong{
-  display:block;
-  font-size:15px;
-  color:#071d3b
-}
-
-.info span{
-  display:block;
-  font-size:14px;
-  margin-top:4px
-}
-
-h2{
-  margin:0 0 16px;
-  font-size:23px
-}
-
-.registration-button{
-  display:block;
-  width:100%;
-  padding:16px 20px;
-  background:linear-gradient(90deg,#f5c400,#ff8a00);
-  color:#071d3b;
-  text-decoration:none;
-  font-size:18px;
-  font-weight:900;
-  border-radius:11px;
-  text-align:center;
-  box-shadow:0 5px 15px rgba(0,0,0,.12);
-}
-
-.registration-button:hover{
-  filter:brightness(.97)
-}
-
-.note{
-  text-align:center;
-  font-size:12px;
-  color:#596575;
-  margin-top:12px
-}
-
-@media(max-width:520px){
-  .overlay{
-    padding:18px 10px 30px
-  }
-
-  .card{
-    padding:18px
-  }
-
-  .logo{
-    font-size:34px
-  }
-
-  .title{
-    font-size:23px
-  }
-
-  .info{
-    grid-template-columns:1fr
-  }
-}
+html,body{margin:0;min-height:100%;font-family:Arial,Helvetica,sans-serif}
+body{min-height:100vh;background:radial-gradient(circle at 15% 15%,rgba(0,210,255,.42),transparent 32%),radial-gradient(circle at 85% 20%,rgba(255,0,153,.38),transparent 30%),radial-gradient(circle at 50% 90%,rgba(255,193,7,.35),transparent 35%),linear-gradient(135deg,#071d3b 0%,#173b72 42%,#5d176f 72%,#071d3b 100%);color:#10233f}
+.overlay{min-height:100vh;padding:28px 14px 45px}
+.page{max-width:720px;margin:0 auto}
+.header{text-align:center;color:#fff;margin-bottom:20px}
+.logo{font-size:44px;font-weight:1000;letter-spacing:8px;text-shadow:0 4px 20px rgba(0,0,0,.3)}
+.title{font-size:25px;font-weight:900;margin-top:8px}
+.season{font-size:14px;margin-top:7px;opacity:.9}
+.intro{background:rgba(255,255,255,.96);border-radius:18px;padding:18px;text-align:center;box-shadow:0 12px 35px rgba(0,0,0,.18);margin-bottom:15px}
+.intro strong{display:block;font-size:18px;margin-bottom:5px} .intro span{font-size:13px;color:#647080}
+.filters{display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-bottom:16px}
+.filter{border:0;border-radius:999px;padding:9px 14px;font-weight:900;cursor:pointer;background:#fff;color:#10233f} .filter.active{background:#f5c400}
+.schedule{display:grid;gap:11px}
+.event{background:rgba(255,255,255,.97);border-radius:18px;padding:15px;box-shadow:0 10px 30px rgba(0,0,0,.19);border-left:7px solid #999}
+.event.elite{border-left-color:#8e44ff} .event.challenge{border-left-color:#168cff} .event.start{border-left-color:#20b957} .event.final{border-left-color:#f5a400}
+.event-top{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.event-name{font-size:19px;font-weight:1000} .event-date{font-size:14px;margin-top:5px;color:#5e6877}
+.badge{font-size:11px;font-weight:1000;border-radius:999px;padding:6px 9px;background:#eef1f6}
+.elite .badge{background:#f0e7ff;color:#7137c8} .challenge .badge{background:#e4f2ff;color:#0871c9} .start .badge{background:#e5f8ec;color:#158640} .final .badge{background:#fff1cf;color:#a66a00}
+.register{display:block;width:100%;border:0;text-align:center;text-decoration:none;margin-top:13px;padding:12px;border-radius:11px;font-weight:1000;background:linear-gradient(90deg,#f5c400,#ff8a00);color:#071d3b;cursor:pointer;font-size:15px}
+.pending{opacity:.82}
+.ranking{margin-top:18px;background:rgba(255,255,255,.96);border-radius:18px;padding:18px;text-align:center;box-shadow:0 10px 30px rgba(0,0,0,.16)}
+.ranking h2{margin:0 0 6px;font-size:19px} .ranking p{margin:0;color:#66717f;font-size:13px}
+.note{margin:17px 4px 0;text-align:center;color:rgba(255,255,255,.82);font-size:12px;line-height:1.5}
+@media(max-width:520px){.overlay{padding:18px 10px 30px}.logo{font-size:35px}.title{font-size:21px}.event-top{align-items:flex-start;flex-direction:column}.badge{align-self:flex-start}}
 </style>
 </head>
-
 <body>
-
-<div class="overlay">
-<main class="page">
-
+<div class="overlay"><main class="page">
 <header class="header">
-  <div class="logo">ELITE</div>
-  <div class="title">Paplūdimio tinklinio turnyras</div>
-  <div class="subtitle">Registracija į turnyrą</div>
+<div class="logo">ELITE</div>
+<div class="title">Paplūdimio tinklinio turnyrų sezonas</div>
+<div class="season">2026–2027</div>
 </header>
-
-<section class="card">
-
-  <div class="info">
+<section class="intro"><strong>TURNYRŲ KALENDORIUS</strong><span>19 turnyrų · visi turnyrai prasideda 11:00</span></section>
+<nav class="filters">
+<button class="filter active" data-filter="all">VISI</button>
+<button class="filter" data-filter="elite">🟣 ELITE</button>
+<button class="filter" data-filter="challenge">🔵 CHALLENGE</button>
+<button class="filter" data-filter="start">🟢 START</button>
+<button class="filter" data-filter="final">🏆 FINAL</button>
+</nav>
+<section class="schedule"><article class="event elite" data-type="elite">
+  <div class="event-top">
     <div>
-      <strong>DATA</strong>
-      <span>Spalio 11 d.</span>
+      <div class="event-name">🟣 ELITE #1</div>
+      <div class="event-date">Spalio 11 d. · <strong>11:00</strong></div>
     </div>
-
+    <span class="badge">REGISTRACIJA</span>
+  </div>
+  <a class="register" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAN__iaUIAhUNlkxTTZTOVo3RVdEWktaRTFMSFhVRFBHNS4u&lang=lt" target="_blank" rel="noopener noreferrer">REGISTRUOTIS</a>
+</article>
+<article class="event challenge" data-type="challenge">
+  <div class="event-top">
     <div>
-      <strong>LAIKAS</strong>
-      <span>10:00–13:00</span>
+      <div class="event-name">🔵 CHALLENGE #1</div>
+      <div class="event-date">Spalio 18 d. · <strong>11:00</strong></div>
     </div>
+    <span class="badge">CHALLENGE</span>
   </div>
-
-  <h2>Registracija</h2>
-
-  <a
-    href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAN__iaUIAhUNlkxTTZTOVo3RVdEWktaRTFMSFhVRFBHNS4u&lang=lt"
-    target="_blank"
-    rel="noopener noreferrer"
-    class="registration-button"
-  >
-    REGISTRUOTIS Į TURNYRĄ
-  </a>
-
-  <div class="note">
-    Paspaudę mygtuką būsite nukreipti į registracijos formą.
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event start" data-type="start">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟢 START #1</div>
+      <div class="event-date">Spalio 25 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">START</span>
   </div>
-
-</section>
-
-</main>
-</div>
-
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event elite" data-type="elite">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟣 ELITE #2</div>
+      <div class="event-date">Lapkričio 8 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">ELITE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event challenge" data-type="challenge">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🔵 CHALLENGE #2</div>
+      <div class="event-date">Lapkričio 15 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">CHALLENGE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event start" data-type="start">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟢 START #2</div>
+      <div class="event-date">Lapkričio 22 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">START</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event elite" data-type="elite">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟣 ELITE #3</div>
+      <div class="event-date">Lapkričio 29 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">ELITE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event challenge" data-type="challenge">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🔵 CHALLENGE #3</div>
+      <div class="event-date">Gruodžio 6 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">CHALLENGE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event start" data-type="start">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟢 START #3</div>
+      <div class="event-date">Gruodžio 13 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">START</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event elite" data-type="elite">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟣 ELITE #4</div>
+      <div class="event-date">Sausio 10 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">ELITE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event challenge" data-type="challenge">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🔵 CHALLENGE #4</div>
+      <div class="event-date">Sausio 17 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">CHALLENGE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event start" data-type="start">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟢 START #4</div>
+      <div class="event-date">Sausio 24 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">START</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event elite" data-type="elite">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟣 ELITE #5</div>
+      <div class="event-date">Sausio 31 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">ELITE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event challenge" data-type="challenge">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🔵 CHALLENGE #5</div>
+      <div class="event-date">Vasario 7 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">CHALLENGE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event start" data-type="start">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟢 START #5</div>
+      <div class="event-date">Vasario 14 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">START</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event elite" data-type="elite">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟣 ELITE #6</div>
+      <div class="event-date">Vasario 28 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">ELITE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event challenge" data-type="challenge">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🔵 CHALLENGE #6</div>
+      <div class="event-date">Kovo 7 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">CHALLENGE</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event start" data-type="start">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🟢 START #6</div>
+      <div class="event-date">Kovo 14 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">START</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article>
+<article class="event final" data-type="final">
+  <div class="event-top">
+    <div>
+      <div class="event-name">🏆 BEACH LEAGUE FINAL</div>
+      <div class="event-date">Balandžio 11 d. · <strong>11:00</strong></div>
+    </div>
+    <span class="badge">FINALAS</span>
+  </div>
+  <button class="register pending" type="button">REGISTRUOTIS</button>
+</article></section>
+<section class="ranking"><h2>🏆 SEZONO ĮSKAITA</h2><p>Sezono taškų skaičiavimo ir bendros įskaitos lentelę prijungsime kitame etape.</p></section>
+<div class="note"><strong>Spalio 11 d. registracija:</strong> naudojama jau veikianti Microsoft Forms forma. Jos nuoroda ir esamos registracijos nepakeistos.</div>
+</main></div>
+<script>
+document.querySelectorAll('.filter').forEach(function(button){
+button.addEventListener('click',function(){
+document.querySelectorAll('.filter').forEach(function(b){b.classList.remove('active')});
+button.classList.add('active');
+var type=button.dataset.filter;
+document.querySelectorAll('.event').forEach(function(event){event.style.display=(type==='all'||event.dataset.type===type)?'block':'none';});
+});
+});
+document.querySelectorAll('.pending').forEach(function(button){
+button.addEventListener('click',function(){alert('Šio turnyro Microsoft Forms registracijos nuorodą prijungsime, kai sukursime bendrą sezono registracijos formą.');});
+});
+</script>
 </body>
 </html>
