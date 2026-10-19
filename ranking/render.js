@@ -21,6 +21,9 @@ export const renderEmpty = (title, text) => `<div class="state state-empty"><p><
 
 export const EMPTY_OFFICIAL = ['Oficialių rezultatų dar nėra', 'Reitingas atsiras, kai organizatoriai paskelbs pirmojo turnyro rezultatus. Juodraščiai ir nepatvirtinti rezultatai į reitingą neįskaičiuojami.'];
 
+/** Vietinis režimas (Supabase neprijungtas): aiškiai pasakoma, kad bendros duomenų bazės dar nėra. */
+export const EMPTY_LOCAL = ['Oficialių rezultatų dar nėra', 'Bendra reitingų duomenų bazė dar neprijungta, todėl paskelbtų rezultatų kol kas nėra. Kalendorių, turnyrų sąrašą ir taškų taisykles galite peržiūrėti.'];
+
 export const UNCONFIGURED = ['Reitingai dar neprijungti', 'Reitingų duomenų bazė dar nesukonfigūruota, todėl oficialių rezultatų parodyti negalime. Kalendorių (skiltis „Turnyrų rezultatai“) ir taisykles galite peržiūrėti.'];
 
 /** Nuostatų problema: tuščia konfigūracija – paprastas pranešimas; neteisingos / privilegijuotos reikšmės – konkreti priežastis. */
