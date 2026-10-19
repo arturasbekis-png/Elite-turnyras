@@ -25,10 +25,10 @@ export const UNCONFIGURED = ['Reitingai dar neprijungti', 'Reitingų duomenų ba
 
 /** Pastabos apie duomenų pilnumą (statinio rezultatų failo režimas). */
 export function renderDataNotices({ incomplete = [], limitedNames = 0 } = {}) {
-  const groupText = (g) => `${g.position}–${g.position + g.declared - 1} vietų grupėje žinomos ${g.known} iš ${g.declared} komandų (trūksta ${g.missing})`;
-  const parts = incomplete.map((x) => `<li><strong>${esc(x.name)}:</strong> ${x.groups.map(groupText).map(esc).join('; ')}. Trūkstama komanda nekuriama ir nepridedama; likusių komandų taškai skaičiuojami pagal visą grupę ir nepasikeis, kai ji bus patvirtinta.</li>`);
+  const groupText = (g) => `${g.position}–${g.position + g.declared - 1} vietų grupėje žinomos ${g.known} iš ${g.declared} porų (trūksta ${g.missing})`;
+  const parts = incomplete.map((x) => `<li><strong>${esc(x.name)}:</strong> ${x.groups.map(groupText).map(esc).join('; ')}. Trūkstama pora nekuriama ir nepridedama; likusių porų taškai skaičiuojami pagal visą grupę ir nepasikeis, kai ji bus patvirtinta.</li>`);
   if (limitedNames) parts.push(`<li>${esc(limitedNames)} žaidėjų nurodyti tik vardu arba vardu ir pavardės inicialu – pilni vardai nepatvirtinti. Vienodi vardai skirtinguose turnyruose laikomi tuo pačiu žaidėju.</li>`);
-  return `<div class="notice info" role="note" id="static-info">Oficialūs rezultatai paskelbti iš bendro duomenų failo – visi lankytojai mato tuos pačius duomenis.</div>${parts.length ? `<div class="notice warning" role="note" id="incomplete-notice"><strong>Duomenys nepilni.</strong><ul>${parts.join('')}</ul></div>` : ''}`;
+  return `<div class="notice info" role="note" id="static-info"><strong>Oficialūs paskelbti rezultatai</strong> (bendras duomenų failas) – visi lankytojai mato tuos pačius duomenis. Vietiniai administravimo juodraščiai čia nerodomi.</div>${parts.length ? `<div class="notice warning" role="note" id="incomplete-notice"><strong>Duomenys nepilni.</strong><ul>${parts.join('')}</ul></div>` : ''}`;
 }
 
 /** Nuostatų problema: tuščia konfigūracija – paprastas pranešimas; neteisingos / privilegijuotos reikšmės – konkreti priežastis. */
@@ -60,25 +60,21 @@ function shortNameFromResult(result) {
   return shortName({ type: result.type, number: m ? Number(m[1]) : null });
 }
 
-/** Žaidėjo turnyrų suvestinė (išskleidžiama po eilute). */
-export function renderPlayerDetail(row, playersById) {
+/** Poros turnyrų suvestinė (išskleidžiama po eilute): kiekvienas turnyras, vieta ir poros taškai. */
+export function renderPairDetail(row) {
   const results = row.results || [];
-  if (!results.length) return '<p class="muted">Šis žaidėjas dar neturi patvirtintų rezultatų.</p>';
+  if (!results.length) return '<p class="muted">Ši pora dar neturi patvirtintų rezultatų.</p>';
   const body = results.map((r) => {
-    const partners = r.partnerIds.map((id) => (playersById.get(id) || {}).fullName || '—').join(', ');
     const info = typeInfo(r.type);
     return `<tr>
       <td data-label="Turnyras"><span class="tag ${typeClass(r.type)}">${esc(info.emoji || '')} ${esc(r.tournamentName)}</span></td>
       <td data-label="Data">${esc(formatDate(r.date))}</td>
       <td data-label="Vieta">${esc(r.position)}</td>
-      <td data-label="Partneris">${esc(partners || '—')}</td>
-      <td data-label="Taškai" class="pts">${r.counted ? esc(r.points) : '<span title="Šio renginio taškų sistema dar nenustatyta">–</span>'}</td>
+      <td data-label="Taškai porai" class="pts">${esc(r.points)}</td>
     </tr>`;
   }).join('');
-  const counted = results.filter((r) => r.counted);
-  const sum = Math.round(counted.reduce((s, r) => s + r.points, 0) * 100) / 100;
-  return `<div class="dwrap"><table class="dtable"><thead><tr><th>Turnyras</th><th>Data</th><th>Vieta</th><th>Partneris</th><th>Taškai</th></tr></thead><tbody>${body}</tbody>
-    <tfoot><tr><td colspan="4">Taškų suma (${counted.length} įskaitomi turnyrai)</td><td class="pts">${esc(sum)}</td></tr></tfoot></table></div>`;
+  return `<div class="dwrap"><table class="dtable"><thead><tr><th>Turnyras</th><th>Data</th><th>Vieta</th><th>Taškai porai</th></tr></thead><tbody>${body}</tbody>
+    <tfoot><tr><td colspan="3">Poros taškų suma (${results.length} turnyrai)</td><td class="pts">${esc(row.points)}</td></tr></tfoot></table></div>`;
 }
 
 // ───────────────────────── Reitingų lentelės ─────────────────────────
@@ -87,58 +83,41 @@ function listWrap(inner, head) {
   return `<div class="rtable" role="list">${head}<ol class="rlist">${inner}</ol></div>`;
 }
 
-export function renderOverall({ rows, expanded = new Set(), playersById = new Map(), movementAvailable = false }) {
-  const head = `<div class="rhead rgrid overall" aria-hidden="true"><span>Vieta</span><span>Žaidėjas</span><span class="r">Taškai</span>
-    <span class="r cat-elite">ELITE</span><span class="r cat-challenge">CHALLENGE</span><span class="r cat-future">FUTURE</span><span class="r">Viso</span><span class="r">🥇</span><span class="r">Judėjimas</span></div>`;
-  const items = rows.map((row) => {
-    const open = expanded.has(row.playerId);
-    return `<li class="rrow${open ? ' open' : ''}">
-      <button type="button" class="rmain rgrid overall" data-toggle="${esc(row.playerId)}" aria-expanded="${open}">
-        ${posCell(row)}
-        <span class="rname"><span class="n">${esc(row.name)}</span></span>
-        <span class="rpts"><b>${esc(row.points)}</b><small>tšk.</small></span>
-        <span class="rstats">
-          <span class="rstat cat-elite" data-label="ELITE">${esc(row.played.elite)}</span>
-          <span class="rstat cat-challenge" data-label="CHALLENGE">${esc(row.played.challenge)}</span>
-          <span class="rstat cat-future" data-label="FUTURE">${esc(row.played.future)}</span>
-          <span class="rstat" data-label="Viso turnyrų">${esc(row.played.total)}</span>
-          <span class="rstat" data-label="🥇 Pirmos vietos">${esc(row.wins)}</span>
-          ${movementCell(row, movementAvailable)}
-        </span>
-      </button>
-      <div class="rdetail"${open ? '' : ' hidden'}>${open ? renderPlayerDetail(row, playersById) : ''}</div>
-    </li>`;
-  }).join('');
-  return listWrap(items, head);
-}
-
-export function renderCategory({ category, rows, expanded = new Set(), playersById = new Map() }) {
+/**
+ * Porų reitingo lentelė vienai kategorijai (ELITE arba CHALLENGE). Eilutė = viena pora (abu žaidėjai kartu).
+ * Judėjimo stulpelis rodomas tik kai yra su kuo lyginti (bent du tos kategorijos turnyrai).
+ */
+export function renderPairs({ category, rows, expanded = new Set(), movementAvailable = false }) {
   const info = CATEGORIES[category];
-  const head = `<div class="rhead rgrid cat" aria-hidden="true"><span>Vieta</span><span>Žaidėjas</span><span class="r">Taškai</span><span class="r">Turnyrai</span><span class="r">Pergalės</span></div>`;
+  const mv = movementAvailable ? '' : ' nomove';
+  const head = `<div class="rhead rgrid pair${mv}" aria-hidden="true"><span>Vieta</span><span>Pora</span><span class="r">Taškai</span><span class="r">Turnyrai</span><span class="r">Pergalės</span>${movementAvailable ? '<span class="r">Judėjimas</span>' : ''}</div>`;
   const items = rows.map((row) => {
-    const open = expanded.has(`${category}:${row.playerId}`);
+    const key = `${category}:${row.pairKey}`;
+    const open = expanded.has(key);
     const chips = row.results.map((r) => chip(r)).join('');
-    return `<li class="rrow${open ? ' open' : ''}">
-      <button type="button" class="rmain rgrid cat" data-toggle="${esc(category)}:${esc(row.playerId)}" aria-expanded="${open}">
+    const players = row.names.map((n) => `<span class="n">${esc(n)}</span>`).join('');
+    return `<li class="rrow pair-row${open ? ' open' : ''}" data-pair="${esc(row.pairKey)}">
+      <button type="button" class="rmain rgrid pair${mv}" data-toggle="${esc(key)}" aria-expanded="${open}">
         ${posCell(row)}
-        <span class="rname"><span class="n">${esc(row.name)}</span><span class="chips" aria-label="Taškai pagal turnyrus">${chips}</span></span>
+        <span class="rname"><span class="pair-names">${players}</span><span class="chips" aria-label="Taškai pagal turnyrus">${chips}</span></span>
         <span class="rpts"><b>${esc(row.points)}</b><small>tšk.</small></span>
         <span class="rstats">
           <span class="rstat" data-label="Turnyrai">${esc(row.played)}</span>
           <span class="rstat" data-label="Pergalės">${esc(row.wins)}</span>
+          ${movementAvailable ? movementCell(row, true) : ''}
         </span>
       </button>
-      <div class="rdetail"${open ? '' : ' hidden'}>${open ? renderPlayerDetail({ results: row.results }, playersById) : ''}</div>
+      <div class="rdetail"${open ? '' : ' hidden'}>${open ? renderPairDetail(row) : ''}</div>
     </li>`;
   }).join('');
-  return `<div class="cat-banner ${typeClass(category)}">${esc(info.emoji)} ${esc(info.label)} reitingas · skaičiuojami tik ${esc(info.label)} turnyrų taškai</div>${listWrap(items, head)}`;
+  return `<div class="cat-banner ${typeClass(category)}">${esc(info.emoji)} ${esc(info.label)} porų reitingas · skaičiuojami tik ${esc(info.label)} turnyrų taškai</div>${listWrap(items, head)}`;
 }
 
 /** Žaidėjų paieškos / rūšiavimo juosta. */
 export function renderControls({ query = '', sort = 'points', gender = '', showGender = false, total = 0, shown = 0 }) {
   const opt = (value, label) => `<option value="${value}"${sort === value ? ' selected' : ''}>${label}</option>`;
   return `<div class="controls">
-    <label class="field grow"><span class="sr">Ieškoti žaidėjo</span><input type="search" data-control="query" value="${esc(query)}" placeholder="Ieškoti žaidėjo pagal vardą…" autocomplete="off"></label>
+    <label class="field grow"><span class="sr">Ieškoti poros</span><input type="search" data-control="query" value="${esc(query)}" placeholder="Ieškoti poros pagal žaidėjo vardą…" autocomplete="off"></label>
     <label class="field"><span class="lbl">Rūšiuoti</span><select data-control="sort">${opt('points', 'Pagal taškus')}${opt('name', 'Pagal vardą')}${opt('played', 'Pagal turnyrų skaičių')}</select></label>
     ${showGender ? `<label class="field"><span class="lbl">Kategorija</span><select data-control="gender"><option value="">Visi</option><option value="M"${gender === 'M' ? ' selected' : ''}>Vyrai</option><option value="F"${gender === 'F' ? ' selected' : ''}>Moterys</option></select></label>` : ''}
     <span class="count" aria-live="polite">${esc(shown)} iš ${esc(total)}</span>
@@ -166,16 +145,15 @@ export function renderTournamentList({ tournaments, teamCounts, seasonId, filter
     return `<article class="tcard ${typeClass(t.type)}">
       <div class="ttop"><div><div class="tname">${esc(info.emoji || '')} ${esc(t.name)}</div>
       <div class="tdate">${esc(formatDate(t.date))}${t.startTime ? ` · <strong>${esc(t.startTime)}</strong>` : ''}</div></div>${statusBadge(t.status)}</div>
-      <div class="tmeta"><span>Komandų: <b>${teams == null ? '—' : esc(teams)}</b></span>${note}${t.revision > 1 ? `<span class="muted">Pataisyta (v${esc(t.revision)})</span>` : ''}</div>
+      <div class="tmeta"><span>Porų: <b>${teams == null ? '—' : esc(teams)}</b></span>${note}${t.revision > 1 ? `<span class="muted">Pataisyta (v${esc(t.revision)})</span>` : ''}</div>
       <a class="btn" href="#turnyrai/${encodeURIComponent(t.id)}${seasonId ? `?s=${encodeURIComponent(seasonId)}` : ''}">${t.status === 'finalized' ? 'Pilni rezultatai' : 'Informacija'}</a>
     </article>`;
   }).join('')}</div>`;
 }
 
 const AFFECT_TEXT = {
-  overall: 'BENDRAS REITINGAS',
-  elite: 'ELITE reitingas',
-  challenge: 'CHALLENGE reitingas',
+  elite: 'ELITE porų reitingas',
+  challenge: 'CHALLENGE porų reitingas',
   future: 'FUTURE reitingas',
 };
 
@@ -192,17 +170,17 @@ export function renderTournamentDetail({ view, backHref }) {
       const hide = prev && prev.position === team.position ? ' same' : '';
       return `<tr class="${MEDALS[team.position] ? `medal-${team.position}` : ''}${hide}">
         <td data-label="Vieta"><span class="pos">${MEDALS[team.position] ? `<span aria-hidden="true">${MEDALS[team.position]}</span> ` : ''}${esc(team.position)}${shared ? '=' : ''}</span></td>
-        <td data-label="Komanda">${team.teamName ? `<div class="team">${esc(team.teamName)}</div>` : ''}${team.players.map((p) => `<div>${esc(p.name)}</div>`).join('')}</td>
-        <td data-label="Taškai kiekvienam žaidėjui" class="pts">${view.scored ? esc(team.points) : '–'}</td>
+        <td data-label="Pora">${team.teamName ? `<div class="team">${esc(team.teamName)}</div>` : ''}${team.players.map((p) => `<div>${esc(p.name)}</div>`).join('')}</td>
+        <td data-label="Taškai porai" class="pts">${view.scored ? esc(team.points) : '–'}</td>
       </tr>`;
     }).join('');
     const affects = view.affects.length
-      ? `Šio turnyro taškai įskaičiuojami į: <strong>${view.affects.map((a) => esc(AFFECT_TEXT[a])).join('</strong> ir <strong>')}</strong>. Abu poros žaidėjai gauna visus nurodytus taškus.`
+      ? `Šio turnyro taškai įskaičiuojami į: <strong>${view.affects.map((a) => esc(AFFECT_TEXT[a])).join('</strong> ir <strong>')}</strong>. Taškai skiriami porai vieną kartą (nedubliuojami).`
       : 'Šio renginio taškų sistema dar nenustatyta, todėl rezultatai į jokį reitingą neįskaičiuojami.';
     body = `<div class="impact">${affects}</div>
-      <p class="muted">Komandų: ${esc(view.teamCount)}${t.revision > 1 ? ` · Rezultatai pataisyti (versija ${esc(t.revision)})` : ''}</p>
-      ${(view.incomplete || []).map((g) => `<div class="notice warning" data-incomplete="${esc(g.position)}">Nepilni duomenys: ${esc(g.position)}–${esc(g.position + g.declared - 1)} vietų grupėje žinomos ${esc(g.known)} iš ${esc(g.declared)} komandų (trūksta ${esc(g.missing)}). Trūkstama komanda nekuriama; taškai (po ${esc((view.teams.find((x) => x.position === g.position) || {}).points)}) skaičiuojami pagal visą grupę.</div>`).join('')}
-      <div class="ttable-wrap"><table class="ttable"><thead><tr><th>Vieta</th><th>Komanda</th><th>Taškai kiekvienam žaidėjui</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <p class="muted">Porų: ${esc(view.teamCount)}${t.revision > 1 ? ` · Rezultatai pataisyti (versija ${esc(t.revision)})` : ''}</p>
+      ${(view.incomplete || []).map((g) => `<div class="notice warning" data-incomplete="${esc(g.position)}">Nepilni duomenys: ${esc(g.position)}–${esc(g.position + g.declared - 1)} vietų grupėje žinomos ${esc(g.known)} iš ${esc(g.declared)} porų (trūksta ${esc(g.missing)}). Trūkstama pora nekuriama; taškai (po ${esc((view.teams.find((x) => x.position === g.position) || {}).points)} porai) skaičiuojami pagal visą grupę.</div>`).join('')}
+      <div class="ttable-wrap"><table class="ttable"><thead><tr><th>Vieta</th><th>Pora</th><th>Taškai porai</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   return `<a class="back" href="${esc(backHref)}">← Visi turnyrai</a>
     <article class="tdetail ${typeClass(t.type)}">
@@ -229,29 +207,17 @@ export function renderRules(version = DEFAULT_SCORING_VERSION) {
   return `<section class="card rules" id="taisykles" aria-labelledby="rules-title">
     <h2 id="rules-title">Reitingavimo taisyklės</h2>
     <ol class="rules-list">
-      <li><strong>Reitingas individualus.</strong> Taškai skiriami kiekvienam žaidėjui pagal jo komandos galutinę oficialią vietą turnyre. Abu poros žaidėjai gauna visus taškus – jie nedalijami per pusę.</li>
-      <li><strong>Partnerių keitimas.</strong> Pakeitus partnerį anksčiau uždirbti taškai nedingsta ir neperkeliami: kiekvienas žaidėjas pasilieka taškus iš turnyrų, kuriuose pats žaidė.</li>
+      <li><strong>Reitingas porų, ne atskirų žaidėjų.</strong> Kiekviena lentelės eilutė yra viena pora (abu žaidėjai kartu). Poros taškai skiriami vieną kartą ir nedubliuojami, atskirų žaidėjų įrašų nėra.</li>
+      <li><strong>Partnerių keitimas.</strong> Žaidėjas su kitu partneriu sudaro kitą porą: skirtingų porų taškai niekada nesumuojami ir neperkeliami.</li>
+      <li><strong>Du atskiri reitingai.</strong> ELITE porų reitingą sudaro tik ELITE turnyrų taškai, CHALLENGE porų reitingą – tik CHALLENGE turnyrų taškai. Bendro reitingo nėra, kategorijų taškai nesumuojami. Kiekvienoje kategorijoje poros taškai kaupiami per sezono turnyrus.</li>
       <li><strong>Tik patvirtinti rezultatai.</strong> Į oficialų reitingą įskaitomi tik paskelbti (patvirtinti) turnyrų rezultatai. Juodraščiai ir nepatvirtinti rezultatai taškų neduoda.</li>
-      <li><strong>Bendras ir kategorijų reitingai.</strong> BENDRAS REITINGAS = ELITE + CHALLENGE + FUTURE taškų suma pasirinktame sezone. ELITE, CHALLENGE ir FUTURE reitingai skaičiuojami atskirai, tik pagal savo kategorijos turnyrus. Skirtingų sezonų taškai nesumuojami.</li>
-      <li><strong>Taškų lentelė</strong> (taškai kiekvienam žaidėjui už komandos galutinę vietą):
+      <li><strong>Taškų lentelė</strong> (taškai porai už galutinę vietą turnyre):
         <div class="ptable-wrap">${renderPointsTable(version)}</div></li>
       <li><strong>BEACH LEAGUE FINAL.</strong> Taškų sistema šiam renginiui dar nepatvirtinta, todėl jo rezultatai į reitingus kol kas neįskaičiuojami.</li>
-      <li><strong>Lygūs taškai bendrame reitinge.</strong> Vieta nustatoma pagal: 1) daugiau pirmų vietų ELITE turnyruose; 2) daugiau pirmų vietų iš viso (ELITE, CHALLENGE ir FUTURE); 3) daugiau antrų vietų ELITE turnyruose; 4) daugiau sužaistų patvirtintų turnyrų. Jei vis tiek lygu, žaidėjai dalijasi ta pačia vieta (pažymėta „=“). Vardas ar pavardė vietos nenulemia.</li>
-      <li><strong>Lygūs taškai kategorijų reitinguose.</strong> 1) daugiau pirmų vietų tos kategorijos turnyruose; 2) daugiau antrų vietų tos kategorijos turnyruose; 3) daugiau sužaistų tos kategorijos turnyrų; toliau – ta pati vieta.</li>
-      <li><strong>Pasidalintos vietos turnyre.</strong> Pagal nutylėjimą kiekviena komanda užima atskirą vietą. Jei organizatoriai turnyrui leidžia pasidalintas vietas, pasidalinusios komandos užima visas tos grupės vietas ir kiekviena gauna jų taškų vidurkį (pvz. ELITE 5–6 vietos: (22 + 20) / 2 = 21; CHALLENGE 5–8 vietos: (18 + 16 + 14 + 12) / 4 = 15), o kita vieta praleidžiama (pvz. 1, 2, 2, 4). Abu poros nariai gauna visus šiuos taškus. Vietoms 9–12 ir 13–16 taškai vienodi, todėl joms vietų dalytis nebūtina.</li>
-      <li><strong>Pataisymai.</strong> Jei paskelbtame rezultate randama klaida, jis pataisomas, visi reitingai perskaičiuojami automatiškai, o pakeitimas ir jo priežastis išsaugomi audito žurnale.</li>
-      <li><strong>Judėjimas.</strong> Rodo vietos pokytį, palyginus su lentele prieš paskutinį patvirtintą turnyrą. Kol patvirtintas tik vienas turnyras, judėjimas nerodomas.</li>
+      <li><strong>Lygūs taškai.</strong> Vieta nustatoma pagal: 1) daugiau pirmų vietų; 2) daugiau antrų vietų; 3) daugiau sužaistų patvirtintų turnyrų. Jei vis tiek lygu, poros dalijasi ta pačia vieta (pažymėta „=“). Vardas ar pavardė vietos nenulemia.</li>
+      <li><strong>Pasidalintos vietos turnyre.</strong> Pagal nutylėjimą kiekviena pora užima atskirą vietą. Jei organizatoriai turnyrui leidžia pasidalintas vietas, pasidalinusios poros užima visas tos grupės vietas ir kiekviena gauna jų taškų vidurkį (pvz. ELITE 5–6 vietos: (22 + 20) / 2 = 21; CHALLENGE 5–8 vietos: (18 + 16 + 14 + 12) / 4 = 15), o kita vieta praleidžiama (pvz. 1, 2, 2, 4). Vietoms 9–12 ir 13–16 taškai vienodi, todėl joms vietų dalytis nebūtina.</li>
+      <li><strong>Pataisymai.</strong> Jei paskelbtame rezultate randama klaida, jis pataisomas ir reitingai perskaičiuojami iš to paties šaltinio – taškai niekada nesidubliuoja.</li>
+      <li><strong>Judėjimas (▲/▼).</strong> Rodo vietos pokytį, palyginus su lentele prieš paskutinį tos kategorijos turnyrą. Kol kategorijoje yra tik vienas patvirtintas turnyras, judėjimas nerodomas.</li>
     </ol>
-  </section>`;
-}
-
-/** Visų sezonų statistika – atskira nuo sezono reitingo, su aiškiomis taisyklėmis. */
-export function renderAllTime(rows) {
-  if (!rows.length) return '';
-  const top = rows.slice(0, 20).map((r) => `<tr><td>${esc(r.position)}${r.tied ? '=' : ''}</td><td>${esc(r.name)}</td><td class="pts">${esc(r.points)}</td><td>${esc(r.played.total)}</td><td>${esc(r.wins)}</td><td>${esc(r.seasons)}</td></tr>`).join('');
-  return `<section class="card alltime" aria-labelledby="alltime-title">
-    <h2 id="alltime-title">Visų sezonų statistika</h2>
-    <p class="muted">Tai ne sezono reitingas, o istorinė statistika: sumuojami visų sezonų patvirtintų ELITE, CHALLENGE ir FUTURE turnyrų taškai pagal tas pačias taisykles. Lygūs taškai sprendžiami taip pat kaip bendrame reitinge.</p>
-    <div class="ttable-wrap"><table class="ttable"><thead><tr><th>Vieta</th><th>Žaidėjas</th><th>Taškai</th><th>Turnyrai</th><th>Pergalės</th><th>Sezonai</th></tr></thead><tbody>${top}</tbody></table></div>
   </section>`;
 }

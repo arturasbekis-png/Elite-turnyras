@@ -5,6 +5,9 @@
 /** Ranguojamos turnyrų kategorijos (jų taškai sudaro reitingus). */
 export const RANKED_CATEGORIES = ['elite', 'challenge', 'future'];
 
+/** Oficialūs VIEŠI reitingai: tik porų lentelės, atskirai ELITE ir CHALLENGE (bendro ar individualaus reitingo nėra). */
+export const PAIR_CATEGORIES = ['elite', 'challenge'];
+
 /** Kategorijų išvaizda (spalvos paimtos iš esamo kalendoriaus puslapio index.html). */
 export const CATEGORIES = {
   elite: { id: 'elite', label: 'ELITE', emoji: '🟣', color: '#8e44ff', soft: '#f0e7ff', text: '#7137c8' },
@@ -107,6 +110,7 @@ export const TIE_POLICY = {
 
 /** Reitingų sudarymo lygių sprendimo tvarka (naudojama ir taisyklių tekste). */
 export const TIEBREAKERS = {
+  pairs: ['wins', 'seconds', 'played'],
   overall: ['eliteWins', 'totalWins', 'eliteSeconds', 'played'],
   category: ['wins', 'seconds', 'played'],
 };

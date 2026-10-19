@@ -3,8 +3,8 @@
 // SVARBU: čia daroma tik patogi validacija naudotojui. Galutinį sprendimą visada priima serveris
 // (supabase/schema.sql funkcijos), todėl apeiti taisyklių per naršyklę negalima.
 
-import { validateResults, previewPoints, computeRankings, tournamentView, scoringTableFor, pointsForEntry, positionCounts } from './engine.js';
-import { overallCsv, categoryCsv, tournamentCsv } from './csv.js';
+import { validateResults, previewPoints, computePairRankings, tournamentView, scoringTableFor, pointsForEntry, positionCounts } from './engine.js';
+import { pairsCsv, tournamentCsv } from './csv.js';
 import { tournamentId as makeTournamentId } from './events.js';
 import { fold, pickDefaultSeason } from './view.js';
 import { buildName, namesAlike } from './names.js';
@@ -112,7 +112,7 @@ export function createAdminController(backend, { onChange = () => {}, onAuthLost
       .sort((a, b) => a.fullName.localeCompare(b.fullName, 'lt'));
   };
 
-  /** Taškai kiekvienam žaidėjui pagal komandos vietą (tas pats variklis kaip viešame reitinge). */
+  /** Taškai porai pagal vietą (tas pats variklis kaip viešame reitinge). */
   function livePoints() {
     const t = tournament();
     const result = { scored: false, byKey: new Map() };
@@ -320,9 +320,10 @@ export function createAdminController(backend, { onChange = () => {}, onAuthLost
         }
         return { filename: `turnyras-${t.id}.csv`, content: tournamentCsv(t, teams) };
       }
-      const rankings = computeRankings(ds, { seasonId: state.seasonId });
-      if (kind === 'overall') return { filename: `reitingas-bendras-${state.seasonId}.csv`, content: overallCsv(rankings.overall) };
-      if (['elite', 'challenge', 'future'].includes(kind)) return { filename: `reitingas-${kind}-${state.seasonId}.csv`, content: categoryCsv(rankings.categories[kind]) };
+      if (['elite', 'challenge'].includes(kind)) {
+        const pairs = computePairRankings(ds, { seasonId: state.seasonId });
+        return { filename: `reitingas-poros-${kind}-${state.seasonId}.csv`, content: pairsCsv(pairs.categories[kind]) };
+      }
       return null;
     },
   };

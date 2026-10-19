@@ -193,7 +193,7 @@ function renderResults() {
       <td data-label="Vieta"><input type="number" min="1" step="1" inputmode="numeric" data-entry="${esc(e.key)}" data-field="position" value="${esc(e.position)}" class="pos-input" aria-label="Galutinė vieta"></td>
       <td data-label="Žaidėjas 1"><select data-entry="${esc(e.key)}" data-field="player1" aria-label="Žaidėjas 1">${playerOptions(e.playerIds[0], other0, { testSeason })}</select></td>
       <td data-label="Žaidėjas 2"><select data-entry="${esc(e.key)}" data-field="player2" aria-label="Žaidėjas 2">${playerOptions(e.playerIds[1], other1, { testSeason })}</select></td>
-      <td data-label="Taškai kiekvienam" class="pts" data-points="${esc(e.key)}">${esc(cell)}</td>
+      <td data-label="Taškai porai" class="pts" data-points="${esc(e.key)}">${esc(cell)}</td>
       <td><button type="button" class="btn danger" data-act="remove-team" data-key="${esc(e.key)}" aria-label="Pašalinti komandą">✕</button></td></tr>`;
   }).join('');
 
@@ -214,11 +214,11 @@ function renderResults() {
     <div class="ttop"><div><h2 style="margin:0">${esc(type.emoji || '')} ${esc(t.name)}</h2><div class="tdate">${esc(formatDate(t.date))} · ${esc(type.label)}</div></div>${statusBadge(t.status)}</div>
     ${finalized ? (ui.local
       ? `<div class="notice warning" id="local-finalized">Rezultatai patvirtinti TIK šioje naršyklėje (versija ${esc(t.revision)}) – viešai NEPASKELBTI ir viešame reitingų puslapyje nerodomi. Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html" target="_blank" rel="noopener">Atidaryti viešą reitingų puslapį (jame rodomi tik oficialūs rezultatai iš bendro failo)</a></div>`
-      : `<div class="notice info">Rezultatai paskelbti (versija ${esc(t.revision)}). Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html${testSeason ? `#bendras?s=${esc(t.seasonId)}` : ''}" target="_blank" rel="noopener">Atidaryti viešą reitingą</a></div>`) : ''}
-    ${testSeason ? `<div class="notice warning" id="test-season-note">BANDOMASIS turnyras: čia galite laisvai bandyti, rezultatai nėra oficialūs ir bus ištrinti skiltyje BANDYMAS. <a href="reitingai.html#bendras?s=${esc(t.seasonId)}" target="_blank" rel="noopener">Atidaryti bandomąjį viešą reitingą</a></div>` : ''}
+      : `<div class="notice info">Rezultatai paskelbti (versija ${esc(t.revision)}). Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html${testSeason ? `#elite?s=${esc(t.seasonId)}` : ''}" target="_blank" rel="noopener">Atidaryti viešą reitingą</a></div>`) : ''}
+    ${testSeason ? `<div class="notice warning" id="test-season-note">BANDOMASIS turnyras: čia galite laisvai bandyti, rezultatai nėra oficialūs ir bus ištrinti skiltyje BANDYMAS. <a href="reitingai.html#elite?s=${esc(t.seasonId)}" target="_blank" rel="noopener">Atidaryti bandomąjį viešą reitingą</a></div>` : ''}
     ${t.type === 'final' ? '<div class="notice info">BEACH LEAGUE FINAL taškų sistema nenustatyta – rezultatai bus paskelbti, bet į reitingus neįskaičiuojami.</div>' : ''}
     <h3>3. Komandos ir galutinės vietos</h3>
-    <div class="ttable-wrap"><table class="ttable edit" id="results-table"><thead><tr><th>Vieta</th><th>Žaidėjas 1</th><th>Žaidėjas 2</th><th>Taškai kiekvienam</th><th></th></tr></thead>
+    <div class="ttable-wrap"><table class="ttable edit" id="results-table"><thead><tr><th>Vieta</th><th>Žaidėjas 1</th><th>Žaidėjas 2</th><th>Taškai porai</th><th></th></tr></thead>
       <tbody>${rows || '<tr><td colspan="5" class="muted">Komandų dar nėra. Spauskite „Pridėti komandą“.</td></tr>'}</tbody></table></div>
     <p><button type="button" class="btn secondary" data-act="add-team">＋ Pridėti komandą</button></p>
     ${actions}
@@ -231,8 +231,8 @@ function renderPreview() {
   if (!p) return '';
   const errs = p.validation.errors.length ? `<div class="notice error"><strong>Rasta klaidų:</strong><ul>${p.validation.errors.map((e) => `<li>${esc(e.message)}</li>`).join('')}</ul></div>` : '<div class="notice success">Validacija sėkminga – rezultatus galima skelbti.</div>';
   const warns = p.validation.warnings.map((w) => `<div class="notice info">${esc(w.message)}</div>`).join('');
-  const table = p.validation.valid ? `<div class="ttable-wrap"><table class="ttable" id="preview-table"><thead><tr><th>Vieta</th><th>Žaidėjas 1</th><th>Žaidėjas 2</th><th>Taškai kiekvienam</th></tr></thead><tbody>${p.teams.map((tm) => `<tr><td>${esc(tm.position)}</td><td>${esc((tm.players[0] || {}).name || '—')}</td><td>${esc((tm.players[1] || {}).name || '—')}</td><td class="pts">${p.scored ? esc(tm.points) : '–'}</td></tr>`).join('')}</tbody></table></div>` : '';
-  return `<div class="card"><h2>Taškų peržiūra</h2>${errs}${warns}${table}<p class="muted">Abu komandos žaidėjai gauna pilnus taškus. Tai tik peržiūra – į oficialų reitingą taškai patenka po paskelbimo.</p></div>`;
+  const table = p.validation.valid ? `<div class="ttable-wrap"><table class="ttable" id="preview-table"><thead><tr><th>Vieta</th><th>Žaidėjas 1</th><th>Žaidėjas 2</th><th>Taškai porai</th></tr></thead><tbody>${p.teams.map((tm) => `<tr><td>${esc(tm.position)}</td><td>${esc((tm.players[0] || {}).name || '—')}</td><td>${esc((tm.players[1] || {}).name || '—')}</td><td class="pts">${p.scored ? esc(tm.points) : '–'}</td></tr>`).join('')}</tbody></table></div>` : '';
+  return `<div class="card"><h2>Taškų peržiūra</h2>${errs}${warns}${table}<p class="muted">Taškai skiriami porai vieną kartą. Tai tik peržiūra – į oficialų reitingą taškai patenka po paskelbimo.</p></div>`;
 }
 
 // ── ŽAIDĖJAI ──
@@ -333,7 +333,7 @@ function renderTest() {
         <li><button type="button" class="btn" data-act="create-test-season"${has ? ' disabled' : ''}>1. Sukurti bandomąjį sezoną</button></li>
         <li>Skiltyje <a href="#" data-act="tab" data-tab="players">ŽAIDĖJAI</a> pridėkite bent 4 žaidėjus su pažymėta varnele „Bandomasis žaidėjas“.</li>
         <li><button type="button" class="btn secondary" data-act="open-test-tournament"${firstTournament ? '' : ' disabled'}>3. Atidaryti bandomąjį turnyrą</button> – sudėkite dvi komandas, išsaugokite juodraštį, tada paskelbkite.</li>
-        <li><a href="reitingai.html#bendras?s=${esc(sum.season ? sum.season.id : 'bandymas')}" target="_blank" rel="noopener" id="test-public-link">4. Atidaryti bandomąjį viešą reitingą</a> – po paskelbimo abu komandos nariai turi turėti pilnus taškus; juodraštis viešai nematomas.</li>
+        <li><a href="reitingai.html#elite?s=${esc(sum.season ? sum.season.id : 'bandymas')}" target="_blank" rel="noopener" id="test-public-link">4. Atidaryti bandomąjį viešą reitingą</a> – po paskelbimo pora turi turėti savo taškus; juodraštis viešai nematomas.</li>
       </ol>
       <h3>Bandymo pabaiga</h3>
       <p class="muted">Ištrinami <strong>tik</strong> bandomasis sezonas, jo turnyrai ir žaidėjai, pažymėti kaip bandomieji. Oficialūs sezonai, turnyrai, žaidėjai ir paskelbti rezultatai nepaliečiami. Audito žurnalas išlieka. Jei bandomasis žaidėjas kažkodėl yra oficialiame turnyre, trynimas sustabdomas ir niekas neištrinama.</p>
@@ -354,10 +354,8 @@ function renderExport() {
   const s = ui.ctl.state;
   return `<div class="card"><h2>CSV eksportas</h2>
     <p class="muted">Reitingų lentelės (sezonas ${esc(s.seasonId)}) sudaromos tik iš paskelbtų rezultatų. Failai su UTF-8 koduote ir „;“ skirtuku (tinka lietuviškam Excel).</p>
-    <div class="actions"><button type="button" class="btn" data-act="export" data-kind="overall">Bendras reitingas</button>
-    <button type="button" class="btn" data-act="export" data-kind="elite">ELITE</button>
-    <button type="button" class="btn" data-act="export" data-kind="challenge">CHALLENGE</button>
-    <button type="button" class="btn" data-act="export" data-kind="future">FUTURE</button></div>
+    <div class="actions"><button type="button" class="btn" data-act="export" data-kind="elite">ELITE porų reitingas</button>
+    <button type="button" class="btn" data-act="export" data-kind="challenge">CHALLENGE porų reitingas</button></div>
     <p class="muted">Pasirinkto turnyro rezultatų eksportas – skiltyje „Rezultatai“ (mygtukas po taškų peržiūra) arba čia:</p>
     <div class="actions"><button type="button" class="btn secondary" data-act="export" data-kind="tournament"${s.tournamentId ? '' : ' disabled'}>Pasirinkto turnyro rezultatai</button></div></div>`;
 }

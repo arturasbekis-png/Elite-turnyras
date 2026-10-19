@@ -18,27 +18,16 @@ export function toCsv(header, rows) {
 
 const positionLabel = (r) => (r.tied ? `${r.position}=` : String(r.position));
 
-export function overallCsv(rows) {
+/** Porų reitingas vienai kategorijai: viena eilutė porai. */
+export function pairsCsv(rows) {
   return toCsv(
-    ['Vieta', 'Žaidėjas', 'Taškai', 'ELITE turnyrai', 'CHALLENGE turnyrai', 'FUTURE turnyrai', 'Viso turnyrų', 'Pirmos vietos'],
-    rows.map((r) => [positionLabel(r), r.name, r.points, r.played.elite, r.played.challenge, r.played.future, r.played.total, r.wins]),
+    ['Vieta', 'Žaidėjas 1', 'Žaidėjas 2', 'Taškai', 'Turnyrai', 'Pergalės', 'Antros vietos'],
+    rows.map((r) => [positionLabel(r), r.names[0], r.names[1], r.points, r.played, r.wins, r.seconds]),
   );
 }
 
-export function categoryCsv(rows) {
-  return toCsv(
-    ['Vieta', 'Žaidėjas', 'Taškai', 'Turnyrai', 'Pergalės', 'Antros vietos'],
-    rows.map((r) => [positionLabel(r), r.name, r.points, r.played, r.wins, r.seconds]),
-  );
-}
-
-/** Vieno turnyro rezultatai: viena eilutė žaidėjui. */
+/** Vieno turnyro rezultatai: viena eilutė porai (taškai skiriami porai vieną kartą). */
 export function tournamentCsv(tournament, teams) {
-  const rows = [];
-  teams.forEach((team) => {
-    team.players.forEach((player) => {
-      rows.push([tournament.name, tournament.date, team.position, team.teamName || '', player.name, team.points]);
-    });
-  });
-  return toCsv(['Turnyras', 'Data', 'Vieta', 'Komanda', 'Žaidėjas', 'Taškai'], rows);
+  const rows = teams.map((team) => [tournament.name, tournament.date, team.position, team.teamName || '', team.players.map((p) => p.name).join(' / '), team.points]);
+  return toCsv(['Turnyras', 'Data', 'Vieta', 'Komanda', 'Pora', 'Taškai porai'], rows);
 }

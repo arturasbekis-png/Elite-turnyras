@@ -80,9 +80,11 @@ async function addPlayer(page, first, last, { force = false } = {}) {
   await page.locator('.notice.success', { hasText: 'išsaugotas' }).waitFor();
 }
 
-const publicRows = (page) => page.evaluate(() => [...document.querySelectorAll('.rrow')].map((li) => ({
-  name: li.querySelector('.n').textContent.trim(), points: Number(li.querySelector('.rpts b').textContent),
-})));
+// Viena eilutė = viena PORA: vardas = abu žaidėjai (abėcėlės tvarka, kad tvarka įvedime nesvarbi).
+const publicRows = (page) => page.evaluate(() => [...document.querySelectorAll('.rrow')].map((li) => {
+  const names = [...li.querySelectorAll('.pair-names .n')].map((n) => n.textContent.trim()).sort();
+  return { name: names.join(' / '), names, points: Number(li.querySelector('.rpts b').textContent) };
+}));
 
 async function api(path, { method = 'POST', body, token } = {}) {
   const res = await fetch(`${server.origin}${path}`, {
@@ -136,12 +138,24 @@ test('Neprijungta duomenų bazė: viešas puslapis rodo oficialų failą visiems
   await pub.locator('#static-info').waitFor();
   await pub.locator('.rrow').first().waitFor();
   const before = await publicRows(pub);
-  assert.equal(before.length, 24);
+  assert.equal(before.length, 6, 'ELITE: 6 porų (ne 12 žaidėjų)');
   const pts = officialPoints(before);
-  assert.equal(pts['Sofija B.'], 50); assert.equal(pts['Emilija P.'], 50);
-  assert.equal(pts['Lea D.'], 36); assert.equal(pts['Danielė Š.'], 36);
-  assert.equal(pts['Goda'], 21); assert.equal(pts['Amelija'], 21);
-  assert.equal(pts['Luka B.'], 15);
+  assert.equal(pts['Emilija P. / Sofija B.'], 50);
+  assert.equal(pts['Evgenija M. / Milda R.'], 26);
+  assert.equal(pts['Danielė Š. / Lea D.'], 21); assert.equal(pts['Ditė / Gabrielė'], 21);
+  assert.equal(await pub.locator('.rrow', { hasText: 'Goda' }).count(), 0, 'CHALLENGE poros ELITE lentelėje nerodomos');
+  // CHALLENGE – atskira lentelė; ta pati Lea D. / Danielė Š. pora turi tik CHALLENGE taškus (15), nesumuojama su ELITE
+  await pub.goto(`${siteOff}reitingai.html#challenge`);
+  await pub.locator('.rrow').first().waitFor();
+  const challenge = officialPoints(await publicRows(pub));
+  assert.equal(Object.keys(challenge).length, 7);
+  assert.equal(challenge['Luknė M. / Rusnė A.'], 40);
+  assert.equal(challenge['Amelija / Goda'], 21);
+  assert.equal(challenge['Danielė Š. / Lea D.'], 15);
+  assert.equal(challenge['Adrian / Luka B.'], 15);
+  assert.equal(await pub.locator('.rmove, .rhead:has-text("Judėjimas")').count(), 0, 'nėra ▲/▼ – nėra su kuo lyginti');
+  await pub.goto(`${siteOff}reitingai.html`);
+  await pub.locator('.rrow').first().waitFor();
   const text = await pub.locator('#app').innerText();
   assert.match(text, /Duomenys nepilni/);
   assert.match(text, /žinomos 3 iš 4/);
@@ -366,7 +380,7 @@ test('Rezultatų suvedimas: komandos, taškai iš karto, užblokuotas dvigubas d
   await admin.click('[data-act="preview"]');
   await admin.getByText('Validacija sėkminga').waitFor();
   const preview = await admin.locator('#preview-table').innerText();
-  assert.match(preview, /Vieta\s+Žaidėjas 1\s+Žaidėjas 2\s+Taškai kiekvienam/i);
+  assert.match(preview, /Vieta\s+Žaidėjas 1\s+Žaidėjas 2\s+Taškai porai/i);
   assert.match(preview, /1\s+Jonas Jonaitis\s+Petras Petraitis\s+50/);
   await shot(admin, 'admin-rezultatai-perziura');
 
@@ -406,14 +420,14 @@ test('Paskelbimas: abu žaidėjai gauna pilnus taškus, viešas reitingas atsina
   const pub = await newPage(anon);
   await pub.goto(`${site}reitingai.html`);
   await pub.locator('.rrow').first().waitFor();
-  const expected = { 'Jonas Jonaitis': 50, 'Petras Petraitis': 50, 'Antanas Antanaitis': 40, 'Kazys Kazlauskas': 40, 'Žygimantas Šimkus': 32, 'Rūta Rutkauskaitė': 32, 'Ąžuolas Ūdrys': 26, 'Eglė Egliūtė': 26 };
+  const expected = { 'Jonas Jonaitis / Petras Petraitis': 50, 'Antanas Antanaitis / Kazys Kazlauskas': 40, 'Rūta Rutkauskaitė / Žygimantas Šimkus': 32, 'Eglė Egliūtė / Ąžuolas Ūdrys': 26 };
   const check = async () => {
     const rows = await publicRows(pub);
-    assert.equal(rows.length, 8);
+    assert.equal(rows.length, 4, 'ELITE: 4 poros');
     for (const [name, points] of Object.entries(expected)) assert.equal(rows.find((r) => r.name === name).points, points, name);
   };
   await check();
-  await shot(pub, 'viesas-bendras');
+  await shot(pub, 'viesas-elite');
   await pub.reload();
   await pub.locator('.rrow').first().waitFor();
   await check();
@@ -421,7 +435,7 @@ test('Paskelbimas: abu žaidėjai gauna pilnus taškus, viešas reitingas atsina
   // ELITE kategorija ir turnyro rezultatai matomi viešai
   await pub.goto(`${site}reitingai.html#elite`);
   await pub.locator('.rrow').first().waitFor();
-  assert.equal((await publicRows(pub)).length, 8);
+  assert.equal((await publicRows(pub)).length, 4);
   await pub.goto(`${site}reitingai.html#challenge`);
   await pub.getByText('oficialių rezultatų dar nėra').first().waitFor();
   await pub.goto(`${site}reitingai.html#turnyrai`);
@@ -480,8 +494,8 @@ test('Pataisymas: vietos sukeičiamos, privaloma priežastis, taškai perskaiči
   await pub.goto(`${site}reitingai.html`);
   await pub.locator('.rrow').first().waitFor();
   const publicNow = Object.fromEntries((await publicRows(pub)).map((r) => [r.name, r.points]));
-  assert.equal(publicNow['Jonas Jonaitis'], 40);
-  assert.equal(publicNow['Antanas Antanaitis'], 50);
+  assert.equal(publicNow['Jonas Jonaitis / Petras Petraitis'], 40);
+  assert.equal(publicNow['Antanas Antanaitis / Kazys Kazlauskas'], 50);
   await anon.close();
 });
 
@@ -606,6 +620,36 @@ test('Atsijungimas: admin veiksmai nebeprieinami; neteisėti rašymai tiesiai į
   assert.equal((await api('/rest/v1/rpc/public_ranking_data', { body: {} })).status, 200);
 });
 
+test('Mobilus išdėstymas (360 ir 390 px): porų lentelės be horizontalaus slinkimo, kalendoriaus registracijos nuorodos nepakitusios', { skip }, async () => {
+  for (const width of [360, 390]) {
+    const context = await browser.newContext({ viewport: { width, height: 800 } });
+    const page = await newPage(context);
+    const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+    for (const hash of ['#elite', '#challenge', '#turnyrai', '#turnyrai/2026-2027-challenge-1']) {
+      await page.goto(`${siteOff}reitingai.html${hash}`);
+      await page.locator(hash.startsWith('#turnyrai') ? '.tcard, .tdetail' : '.rrow').first().waitFor();
+      assert.ok(await overflow() <= 1, `${hash} ${width}px: horizontalaus slinkimo nėra`);
+    }
+    // išskleista pora (detalių lentelė) taip pat telpa
+    await page.goto(`${siteOff}reitingai.html#challenge`);
+    await page.locator('.rrow').first().click();
+    await page.locator('.rrow.open .dtable').waitFor();
+    assert.ok(await overflow() <= 1, `išskleista pora ${width}px`);
+    assert.equal(await page.locator('.rrow').count(), 7);
+    await context.close();
+  }
+  // Kalendorius: registracijos nuorodos tos pačios kaip repozitorijos index.html
+  const context = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  const page = await newPage(context);
+  await page.goto(`${siteOff}index.html`);
+  const live = await page.evaluate(() => [...document.querySelectorAll('a.register[href], .register[href]')].map((a) => a.getAttribute('href')));
+  const source = [...readFileSync(join(root, 'index.html'), 'utf8').matchAll(/<a[^>]*class="register"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(source.length >= 3, 'kalendoriuje yra registracijos nuorodų');
+  assert.deepEqual(live, source);
+  assert.ok(source.some((h) => h === 'reitingai.html'));
+  await context.close();
+});
+
 test('Naujas publishable raktas (NE JWT): viešas puslapis ir administravimas veikia, raktas niekada nesiunčiamas kaip Bearer', { skip }, async () => {
   const pub = await startLocalSupabase({ pg: { host: HOST, port: PORT, user: USER }, database: DB, staticRoot: root, users: [ADMIN, OUTSIDER], keyMode: 'publishable' });
   try {
@@ -614,7 +658,7 @@ test('Naujas publishable raktas (NE JWT): viešas puslapis ir administravimas ve
     const page = await newPage(context);
     await page.goto(`${pub.siteUrl}reitingai.html`);
     await page.locator('.rrow').first().waitFor();
-    assert.equal((await publicRows(page)).length, 8, 'oficialūs rezultatai matomi ir su publishable raktu');
+    assert.equal((await publicRows(page)).length, 4, 'oficialūs rezultatai matomi ir su publishable raktu');
 
     await page.goto(`${pub.siteUrl}reitingai-admin.html`);
     await page.fill('#login-email', ADMIN.email);
@@ -759,15 +803,15 @@ test('BANDYMAS (realioje DB per naršyklę): išbandomas visas kelias su neofici
   await pub.goto(`${site}reitingai.html`);
   await pub.locator('.rrow').first().waitFor();
   const mainRows = await publicRows(pub);
-  assert.equal(mainRows.length, 8, 'pagrindiniame reitinge tik oficialūs žaidėjai');
+  assert.equal(mainRows.length, 4, 'pagrindiniame reitinge tik oficialios poros');
   assert.ok(mainRows.every((r) => !r.name.startsWith('Bandymas')));
   assert.ok(!(await pub.locator('#app').innerText()).includes('BANDOMASIS SEZONAS'));
-  assert.ok(!(await pub.locator('#alltime').innerText()).includes('Bandymas'), 'istorinėje statistikoje bandomųjų nėra');
-  await pub.goto(`${site}reitingai.html#bendras?s=bandymas`);
+  assert.ok(!(await pub.locator('#app').innerText()).includes('Bandymas'), 'bandomųjų žaidėjų numatytame rodinyje nėra');
+  await pub.goto(`${site}reitingai.html#elite?s=bandymas`);
   await pub.locator('#test-banner').waitFor();
   await pub.locator('.rrow').first().waitFor();
   const testRows = await publicRows(pub);
-  assert.deepEqual(testRows.map((r) => r.points).sort((x, y) => y - x), [50, 50, 40, 40], 'abu partneriai gauna pilnus taškus');
+  assert.deepEqual(testRows.map((r) => r.points).sort((x, y) => y - x), [50, 40], 'viena pora – vieni taškai (nedubliuojami)');
   assert.ok(testRows.every((r) => r.name.startsWith('Bandymas')));
   await shot(pub, 'viesas-bandymas');
 
@@ -785,7 +829,7 @@ test('BANDYMAS (realioje DB per naršyklę): išbandomas visas kelias su neofici
   await pub.reload(); // lankytojas perkrauna puslapį ir gauna naujus duomenis
   await pub.locator('.rrow').first().waitFor();
   assert.equal(await pub.locator('#test-banner').count(), 0, 'bandomojo sezono nebėra');
-  assert.equal((await publicRows(pub)).length, 8);
+  assert.equal((await publicRows(pub)).length, 4);
   await anon.close();
   await context.close();
 });

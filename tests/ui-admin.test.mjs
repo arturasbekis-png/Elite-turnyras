@@ -26,7 +26,7 @@ test('Administravimo puslapis (demo): prisijungimas nereikalingas, visos skiltys
   app.handlers.click(act('preview'));
   assert.ok(html().includes('Validacija sėkminga'));
   assert.ok(html().includes('Taškų peržiūra'));
-  assert.ok(/<th>Vieta<\/th><th>Žaidėjas 1<\/th><th>Žaidėjas 2<\/th><th>Taškai kiekvienam<\/th>/.test(html()), 'lentelės stulpeliai pagal specifikaciją');
+  assert.ok(/<th>Vieta<\/th><th>Žaidėjas 1<\/th><th>Žaidėjas 2<\/th><th>Taškai porai<\/th>/.test(html()), 'lentelės stulpeliai pagal specifikaciją');
 
   // Juodraščio turnyras (FUTURE #1 demo duomenyse): pridedame dvi komandas ir skelbiame
   app.handlers.change(adminChange({ sel: 'tournament' }, '2026-2027-future-1'));
@@ -100,7 +100,7 @@ test('Administravimo puslapis (demo): prisijungimas nereikalingas, visos skiltys
   await tick(50);
   assert.ok(html().includes('Audito žurnalas') && html().includes('Paskelbti rezultatai'), 'audite matomas paskelbimas');
   app.handlers.click(act('tab', { tab: 'export' }));
-  assert.ok(html().includes('CSV eksportas') && html().includes('Bendras reitingas'));
+  assert.ok(html().includes('CSV eksportas') && html().includes('ELITE porų reitingas') && !html().includes('Bendras reitingas'));
   app.handlers.click(act('export', { kind: 'overall' }));
 });
 
@@ -117,7 +117,7 @@ test('Administravimas (demo): skiltis BANDYMAS – sukurti, naudoti bandomąjį 
   assert.ok(html().includes('Bandomasis sezonas: <strong>sukurtas</strong>'));
   assert.ok(html().includes('Bandomasis sezonas sukurtas'), 'sėkmės pranešimas');
   assert.ok(/data-act="create-test-season" disabled/.test(html()), 'pakartotinai kurti nereikia');
-  assert.ok(html().includes('reitingai.html#bendras?s=bandymas'), 'nuoroda į bandomąjį viešą reitingą');
+  assert.ok(html().includes('reitingai.html#elite?s=bandymas'), 'nuoroda į bandomąjį viešą reitingą');
 
   // bandomasis žaidėjas per ŽAIDĖJŲ formą
   app.handlers.click(act('tab', { tab: 'players' }));

@@ -142,8 +142,8 @@ Visa tai – **bandomieji** duomenys, viską ištrinsite 11 žingsnyje.
 4. **Išsaugoti juodraštį.** Atidarykite viešą puslapį kitame įrenginyje: bandomojo sezono reitingas **turi būti tuščias**
    (juodraštis viešai nematomas).
 5. **PASKELBTI OFICIALIUS REZULTATUS.** Atidarykite
-   `https://arturasbekis-png.github.io/Elite-turnyras/reitingai.html#bendras?s=bandymas`
-   (arba nuorodą skiltyje BANDYMAS). Turi matytis geltonas perspėjimas „BANDOMASIS SEZONAS“ ir **abu** komandos nariai
+   `https://arturasbekis-png.github.io/Elite-turnyras/reitingai.html#elite?s=bandymas`
+   (arba nuorodą skiltyje BANDYMAS). Turi matytis geltonas perspėjimas „BANDOMASIS SEZONAS“ ir **poros** taškai (vienas kartą)
    su **pilnais** taškais (po 50 / po 40).
 6. Atidarykite įprastą `reitingai.html` – bandomųjų žaidėjų **ten nėra** (pagrindinis reitingas nepaliestas).
 7. Atsijunkite (**Atsijungti**) – turi vėl rodyti tik prisijungimo formą.
@@ -157,7 +157,7 @@ Jei kuris nors žingsnis nepavyksta – **nepereikite prie oficialių rezultatų
 1. Skiltis **BANDYMAS** → **Ištrinti VISUS bandymo duomenis** → patvirtinkite.
 2. Turi pasirodyti žinutė „Bandymo duomenys ištrinti (sezonų: 1, turnyrų: 3, komandų: 2, žaidėjų: 4). Oficialūs duomenys
    nepaliesti.“ Skaičiai gali skirtis pagal tai, ką bandėte.
-3. Patikrinkite: skiltis **ŽAIDĖJAI** – bandomųjų žaidėjų nebėra; `reitingai.html#bendras?s=bandymas` – bandomojo
+3. Patikrinkite: skiltis **ŽAIDĖJAI** – bandomųjų žaidėjų nebėra; `reitingai.html#elite?s=bandymas` – bandomojo
    sezono nebėra; įprastas `reitingai.html` nepasikeitė.
 
 Ką trynimas daro, o ko ne: ištrina **tik** bandomąjį sezoną, jo turnyrus ir žaidėjus su žyma BANDOMASIS. **Nieko** iš oficialių

@@ -3,8 +3,8 @@
 
 import { createClient } from './api.js';
 import { RUNTIME } from './runtime-config.js';
-import { computeRankings, computeAllTime, tournamentView } from './engine.js';
-import { applyView, hasGenderData, withCalendar, pickDefaultSeason, parseRoute, buildRoute } from './view.js';
+import { computePairRankings, tournamentView } from './engine.js';
+import { applyView, withCalendar, pickDefaultSeason, parseRoute, buildRoute } from './view.js';
 import { loadStaticResults } from './static-results.js';
 import * as R from './render.js';
 
@@ -15,14 +15,13 @@ const demoRequested = isLocal && new URLSearchParams(location.search).has('demo'
 
 const state = {
   status: 'loading', error: '', data: null, demo: false, configured: true, setup: null, staticMode: false,
-  seasonId: null, tab: 'bendras', tournamentId: null,
+  seasonId: null, tab: 'elite', tournamentId: null,
   query: '', sort: 'points', gender: '', tournamentFilter: 'all',
   expanded: new Set(), rankings: null, rankingsFor: null, playersById: new Map(),
 };
 
 const TAB_LABELS = [
-  ['bendras', 'BENDRAS REITINGAS'], ['elite', '🟣 ELITE'], ['challenge', '🔵 CHALLENGE'],
-  ['future', '🟢 FUTURE'], ['turnyrai', 'TURNYRŲ REZULTATAI'],
+  ['elite', '🟣 ELITE'], ['challenge', '🔵 CHALLENGE'], ['turnyrai', 'TURNYRŲ REZULTATAI'],
 ];
 
 async function load() {
@@ -85,7 +84,7 @@ function navigate(partial) {
 
 function rankings() {
   if (state.rankingsFor !== state.seasonId || !state.rankings) {
-    state.rankings = computeRankings(state.data, { seasonId: state.seasonId });
+    state.rankings = computePairRankings(state.data, { seasonId: state.seasonId });
     state.rankingsFor = state.seasonId;
     state.expanded = new Set();
   }
@@ -115,10 +114,8 @@ function render() {
     <section class="card toolbar"><div class="toolbar-row">${seasonSelect}<span class="meta">${R.esc(updated)}</span></div></section>
     <nav class="tabs" role="tablist" aria-label="Reitingų skiltys">${tabs}</nav>
     <section class="panel" id="panel" role="tabpanel"></section>
-    ${R.renderRules(seasonScoringVersion())}
-    <div id="alltime"></div>`;
+    ${R.renderRules(seasonScoringVersion())}`;
   renderPanel();
-  if (state.configured) document.getElementById('alltime').innerHTML = R.renderAllTime(computeAllTime(state.data));
 }
 
 /** Pastabos apie nepilnus duomenis (statinio failo režimas): nepilnos pasidalintos vietos ir ne pilni žaidėjų vardai. */
@@ -146,17 +143,16 @@ function renderPanel() {
     return;
   }
   const r = rankings();
-  const isOverall = state.tab === 'bendras';
-  const rows = isOverall ? r.overall : r.categories[state.tab];
-  const label = isOverall ? 'Bendras reitingas' : state.tab.toUpperCase();
-  if (!r.overall.length) {
+  const rows = r.categories[state.tab];
+  const label = `${state.tab.toUpperCase()} porų reitingas`;
+  if (!r.categories.elite.length && !r.categories.challenge.length) {
     panel.innerHTML = `<div class="card">${R.renderEmpty(...R.EMPTY_OFFICIAL)}</div>`;
     return;
   }
   panel.innerHTML = `<div class="card list-card"><h2 class="sr">${R.esc(label)}</h2>
     <div id="controls"></div><div id="list"></div></div>`;
   document.getElementById('controls').innerHTML = R.renderControls({
-    query: state.query, sort: state.sort, gender: state.gender, showGender: hasGenderData(r.overall), total: rows.length, shown: rows.length,
+    query: state.query, sort: state.sort, showGender: false, total: rows.length, shown: rows.length,
   });
   updateList();
 }
@@ -165,19 +161,16 @@ function updateList() {
   const list = document.getElementById('list');
   if (!list) return;
   const r = rankings();
-  const isOverall = state.tab === 'bendras';
-  const all = isOverall ? r.overall : r.categories[state.tab];
-  const rows = applyView(all, { query: state.query, sort: state.sort, gender: state.gender });
+  const all = r.categories[state.tab] || [];
+  const rows = applyView(all, { query: state.query, sort: state.sort });
   const count = document.querySelector('.controls .count');
   if (count) count.textContent = `${rows.length} iš ${all.length}`;
   if (!all.length) {
     list.innerHTML = R.renderEmpty('Šioje kategorijoje oficialių rezultatų dar nėra');
   } else if (!rows.length) {
-    list.innerHTML = R.renderEmpty('Žaidėjų nerasta', 'Pakeiskite paieškos frazę arba filtrus.');
-  } else if (isOverall) {
-    list.innerHTML = R.renderOverall({ rows, expanded: state.expanded, playersById: state.playersById, movementAvailable: r.movementAvailable });
+    list.innerHTML = R.renderEmpty('Porų nerasta', 'Pakeiskite paieškos frazę.');
   } else {
-    list.innerHTML = R.renderCategory({ category: state.tab, rows, expanded: state.expanded, playersById: state.playersById });
+    list.innerHTML = R.renderPairs({ category: state.tab, rows, expanded: state.expanded, movementAvailable: r.movementAvailable[state.tab] });
   }
 }
 
