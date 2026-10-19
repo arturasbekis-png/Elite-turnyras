@@ -54,7 +54,7 @@ test('Gamyboje demonstraciniai duomenys niekada neįkeliami; viešas puslapis ro
   dom.loc.hash = '#turnyrai/2026-2027-elite-1';
   const elitePanel = dom.el('panel').innerHTML;
   assert.ok(!elitePanel.includes('data-incomplete'), 'ELITE pilnas');
-  assert.equal((elitePanel.match(/class="pts">21</g) || []).length, 2, 'ELITE 5–6: po 21');
+  assert.equal((elitePanel.match(/class="pts">42</g) || []).length, 2, 'ELITE 5–6: po 42');
 
   // Kategorijų skirtukai
   dom.loc.hash = '#elite';

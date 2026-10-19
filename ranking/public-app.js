@@ -125,7 +125,7 @@ function dataNotices() {
     .map((t) => ({ name: t.name, groups: tournamentView(state.data, t.id).incomplete }))
     .filter((x) => x.groups.length);
   const limitedNames = state.data.players.filter((p) => p.nameStatus === 'initial' || p.nameStatus === 'first_name_only').length;
-  return { incomplete, limitedNames };
+  return { incomplete, limitedNames, inheritanceFlags: rankings().inheritanceFlags };
 }
 
 function seasonScoringVersion() {

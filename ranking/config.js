@@ -82,17 +82,34 @@ function buildTables(rows, participation) {
  * sezone nurodykite `scoringVersion: 'v2'` – jau patvirtinti turnyrai išsaugo savo versiją
  * ir jų taškai nesikeičia.
  */
+/**
+ * v2 (nuo 2026–2027 sezono): ELITE taškai padvigubinti (100/80/64/52/44/40/36/32/20/12, dalyvavimas 4).
+ * CHALLENGE ir FUTURE lentelės nepakeistos. Taškai skiriami porai.
+ */
+const V2_ROWS = V1_ROWS.map(([from, to, elite, challenge, future]) => [from, to, elite * 2, challenge, future]);
+const V2_PARTICIPATION = [V1_PARTICIPATION[0] * 2, V1_PARTICIPATION[1], V1_PARTICIPATION[2]];
+
 export const SCORING_TABLES = {
   v1: {
-    label: 'Pradinė oficiali taškų lentelė',
+    label: 'Pradinė taškų lentelė (ELITE 50 už pirmą vietą)',
     tables: buildTables(V1_ROWS, V1_PARTICIPATION),
   },
+  v2: {
+    label: 'Dabartinė taškų lentelė (ELITE padvigubinta: 100 už pirmą vietą)',
+    tables: buildTables(V2_ROWS, V2_PARTICIPATION),
+  },
 };
-export const DEFAULT_SCORING_VERSION = 'v1';
+export const DEFAULT_SCORING_VERSION = 'v2';
+
+/**
+ * Partnerio keitimo taisyklė: jei pasikeičia lygiai vienas poros narys, nauja pora paveldi šią dalį ankstesnės poros
+ * sukauptų TOS PAČIOS kategorijos taškų. Ankstesnė pora savo taškų nepraranda.
+ */
+export const INHERITANCE_RATE = 0.5;
 
 /** Sezonai, žinomi iki duomenų bazės prijungimo (duomenų bazė gali pridėti naujų). */
 export const DEFAULT_SEASONS = [
-  { id: '2026-2027', label: '2026–2027', isCurrent: true, scoringVersion: 'v1' },
+  { id: '2026-2027', label: '2026–2027', isCurrent: true, scoringVersion: 'v2' },
 ];
 
 /**
@@ -100,7 +117,7 @@ export const DEFAULT_SEASONS = [
  * Pagal nutylėjimą lygių vietų turnyre NĖRA: kiekviena komanda turi unikalią vietą 1..N.
  * Jei turnyrui įjungta `allowTies`, galioja standartinis „1-2-2-4“ (competition ranking) principas:
  * vietos numeruojamos taip (5,5,7,7), o komandos, pasidalinusios vietą, užima visas tos grupės vietas
- * ir KIEKVIENA gauna jų taškų VIDURKĮ (ELITE 5–6: (22+20)/2 = 21; CHALLENGE 5–8: (18+16+14+12)/4 = 15).
+ * ir KIEKVIENA gauna jų taškų VIDURKĮ (ELITE 5–6: (44+40)/2 = 42; CHALLENGE 5–8: (18+16+14+12)/4 = 15).
  * Kiekvienas poros narys gauna visus šiuos taškus. Vidurkis apvalinamas iki 2 skaitmenų po kablelio.
  */
 export const TIE_POLICY = {

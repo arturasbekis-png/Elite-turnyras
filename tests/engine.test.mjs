@@ -7,19 +7,36 @@ import {
 } from '../ranking/engine.js';
 import { build, row, dataset, player, tournament, participations, SEASON } from './helpers.mjs';
 
-const pts = (type, position) => pointsForPosition(scoringTableFor(type), position);
+const pts = (type, position, version) => pointsForPosition(scoringTableFor(type, version), position);
 
 // ───────── TEST A — turnyrų taškai ─────────
-test('A: pirmos ir antros vietos taškai visoms kategorijoms', () => {
-  assert.equal(pts('elite', 1), 50);
+test('A: pirmos ir antros vietos taškai visoms kategorijoms (dabartinė v2: ELITE padvigubinta)', () => {
+  assert.equal(pts('elite', 1), 100);
   assert.equal(pts('challenge', 1), 40);
   assert.equal(pts('future', 1), 30);
-  assert.equal(pts('elite', 2), 40);
+  assert.equal(pts('elite', 2), 80);
   assert.equal(pts('challenge', 2), 32);
   assert.equal(pts('future', 2), 24);
+  assert.equal(pts('elite', 1, 'v1'), 50, 'sena v1 lentelė išlieka tiems, kas ją nurodo');
 });
 
-test('A: visa oficiali taškų lentelė sutampa su užduoties lentele (nepriklausomas kopijavimas)', () => {
+test('A: visa oficiali v2 taškų lentelė sutampa su užduoties lentele (nepriklausomas kopijavimas)', () => {
+  // [vieta, ELITE, CHALLENGE, FUTURE] – perrašyta ranka iš užduoties, ne iš config.js
+  const spec2 = [
+    [1, 100, 40, 30], [2, 80, 32, 24], [3, 64, 26, 20], [4, 52, 21, 16], [5, 44, 18, 13],
+    [6, 40, 16, 12], [7, 36, 14, 10], [8, 32, 12, 9],
+    [9, 20, 8, 6], [10, 20, 8, 6], [11, 20, 8, 6], [12, 20, 8, 6],
+    [13, 12, 5, 4], [14, 12, 5, 4], [15, 12, 5, 4], [16, 12, 5, 4],
+    [17, 4, 2, 2], [18, 4, 2, 2], [40, 4, 2, 2],
+  ];
+  for (const [position, e, c, f] of spec2) {
+    assert.equal(pts('elite', position, 'v2'), e, `ELITE ${position}`);
+    assert.equal(pts('challenge', position, 'v2'), c, `CHALLENGE ${position} (nepakito)`);
+    assert.equal(pts('future', position, 'v2'), f, `FUTURE ${position}`);
+  }
+});
+
+test('A: sena v1 taškų lentelė (ELITE 50) nepakito', () => {
   // [vieta, ELITE, CHALLENGE, FUTURE] – perrašyta ranka iš užduoties, ne iš config.js
   const spec = [
     [1, 50, 40, 30], [2, 40, 32, 24], [3, 32, 26, 20], [4, 26, 21, 16], [5, 22, 18, 13],
@@ -29,9 +46,9 @@ test('A: visa oficiali taškų lentelė sutampa su užduoties lentele (nepriklau
     [17, 2, 2, 2], [18, 2, 2, 2], [40, 2, 2, 2],
   ];
   for (const [position, e, c, f] of spec) {
-    assert.equal(pts('elite', position), e, `ELITE ${position}`);
-    assert.equal(pts('challenge', position), c, `CHALLENGE ${position}`);
-    assert.equal(pts('future', position), f, `FUTURE ${position}`);
+    assert.equal(pts('elite', position, 'v1'), e, `ELITE ${position}`);
+    assert.equal(pts('challenge', position, 'v1'), c, `CHALLENGE ${position}`);
+    assert.equal(pts('future', position, 'v1'), f, `FUTURE ${position}`);
   }
 });
 
@@ -42,7 +59,7 @@ test('A: netinkama vieta ir BEACH LEAGUE FINAL be taškų lentelės', () => {
 });
 
 test('A: taškų lentelė laikoma vienoje vietoje ir turi versijas', () => {
-  assert.deepEqual(Object.keys(SCORING_TABLES), ['v1']);
+  assert.deepEqual(Object.keys(SCORING_TABLES), ['v1', 'v2']);
 });
 
 // ───────── TEST B — bendras reitingas ─────────
@@ -169,7 +186,7 @@ test('Taškų peržiūra prieš paskelbimą', () => {
   const parts = participations('e1', [[1, ['a', 'b']], [2, ['c', 'd']], [3, ['e', 'f']]]);
   const preview = previewPoints({ tournament: t, participations: parts });
   assert.equal(preview.scored, true);
-  assert.deepEqual(preview.rows.map((r) => r.points), [50, 40, 32]);
+  assert.deepEqual(preview.rows.map((r) => r.points), [100, 80, 64]);
 });
 
 // ───────── TEST I — dubliavimosi prevencija ─────────

@@ -39,7 +39,7 @@ test('Administratoriaus srautas: peržiūra → juodraštis → patvirtinimas', 
 
   const preview = ctl.preview();
   assert.equal(preview.validation.valid, true);
-  assert.deepEqual(preview.teams.map((t) => t.points), [50, 40, 32]);
+  assert.deepEqual(preview.teams.map((t) => t.points), [100, 80, 64]);
   assert.equal(preview.teams[0].players.length, 2);
 
   // juodraštis neturi įtakos oficialiam reitingui
@@ -52,9 +52,9 @@ test('Administratoriaus srautas: peržiūra → juodraštis → patvirtinimas', 
   assert.equal(await ctl.finalize(), true);
   assert.equal(ctl.state.dataset.tournaments.find((t) => t.id === E1).status, 'finalized');
   const { overall } = official(ctl);
-  assert.equal(pointsOf(overall, 'Testinis A'), 50);
-  assert.equal(pointsOf(overall, 'Testinis B'), 50);
-  assert.equal(pointsOf(overall, 'Testinis C'), 40);
+  assert.equal(pointsOf(overall, 'Testinis A'), 100);
+  assert.equal(pointsOf(overall, 'Testinis B'), 100);
+  assert.equal(pointsOf(overall, 'Testinis C'), 80);
 });
 
 test('Antras paskelbimas ir dvigubas paspaudimas taškų neskiria dukart', async () => {
@@ -65,7 +65,7 @@ test('Antras paskelbimas ir dvigubas paspaudimas taškų neskiria dukart', async
   assert.equal(second, false, 'antras vienalaikis paspaudimas ignoruojamas');
   assert.equal(await ctl.finalize(), false);
   assert.match(ctl.state.notice.text, /jau paskelbti/);
-  assert.equal(pointsOf(official(ctl).overall, 'Testinis A'), 50);
+  assert.equal(pointsOf(official(ctl).overall, 'Testinis A'), 100);
   assert.equal(official(ctl).results.length, 4);
   assert.equal(ctl.state.dataset.participations.filter((p) => p.tournamentId === E1).length, 2);
 });
@@ -114,8 +114,8 @@ test('Pataisymas: priežastis privaloma, tinkamas pataisymas perskaičiuoja, net
   assert.match(ctl.state.notice.text, /priežast/);
   ctl.setReason('Finalo vietos buvo sukeistos');
   assert.equal(await ctl.correct(), true);
-  assert.equal(pointsOf(official(ctl).overall, 'Testinis A'), 40);
-  assert.equal(pointsOf(official(ctl).overall, 'Testinis C'), 50);
+  assert.equal(pointsOf(official(ctl).overall, 'Testinis A'), 80);
+  assert.equal(pointsOf(official(ctl).overall, 'Testinis C'), 100);
   assert.equal(ctl.state.dataset.tournaments.find((t) => t.id === E1).revision, 2);
   assert.equal(official(ctl).results.length, 6, 'taškai nedubliuojami');
 
@@ -125,7 +125,7 @@ test('Pataisymas: priežastis privaloma, tinkamas pataisymas perskaičiuoja, net
   ctl.updateTeam(ctl.state.entries[1].key, { position: '2' });
   ctl.setReason('Bandymas su klaida');
   assert.equal(await ctl.correct(), false);
-  assert.equal(pointsOf(official(ctl).overall, 'Testinis C'), 50, 'oficialūs rezultatai nepakito');
+  assert.equal(pointsOf(official(ctl).overall, 'Testinis C'), 100, 'oficialūs rezultatai nepakito');
 
   // auditas
   await ctl.loadAudit();
@@ -225,7 +225,7 @@ test('CSV eksportas: reitingų ir turnyro (juodraštis ir paskelbtas)', async ()
   assert.equal(elite.filename, 'reitingas-poros-elite-2026-2027.csv');
   const lines = elite.content.trim().split('\r\n');
   assert.equal(lines.length, 3, 'antraštė + 2 poros (ne 4 žaidėjai)');
-  assert.ok(lines[1].startsWith('1;Testinis A;Testinis B;50;'), lines[1]);
+  assert.ok(lines[1].startsWith('1;Testinis A;Testinis B;100;'), lines[1]);
   assert.ok(elite.content.includes('Pergalės'));
   assert.equal(ctl.exportCsv('challenge').content.trim().split('\r\n').length, 1, 'CHALLENGE reitingas tuščias');
   assert.equal(ctl.exportCsv('overall'), null, 'bendro reitingo eksporto nėra');
@@ -262,8 +262,8 @@ test('Rezultatų suvedimas: taškai kiekvienam žaidėjui rodomi iš karto, jau 
   ctl.updateTeam(b.key, { position: '13' });
   let live = ctl.livePoints();
   assert.equal(live.scored, true);
-  assert.equal(live.byKey.get(a.key), 50, 'ELITE 1 vieta – 50 taškų kiekvienam');
-  assert.equal(live.byKey.get(b.key), 6, 'ELITE 13 vieta – 6 taškai');
+  assert.equal(live.byKey.get(a.key), 100, 'ELITE 1 vieta – 100 taškų porai');
+  assert.equal(live.byKey.get(b.key), 12, 'ELITE 13 vieta – 12 taškų');
   ctl.updateTeam(b.key, { position: '' });
   assert.equal(ctl.livePoints().byKey.has(b.key), false, 'be vietos taškų nerodoma');
 

@@ -12,7 +12,7 @@
 
 import {
   RANKED_CATEGORIES, EVENT_TYPES, SCORING_TABLES, DEFAULT_SCORING_VERSION,
-  OFFICIAL_STATUS, MIN_TEAMS_TO_FINALIZE, PAIR_CATEGORIES,
+  OFFICIAL_STATUS, MIN_TEAMS_TO_FINALIZE, PAIR_CATEGORIES, INHERITANCE_RATE,
 } from './config.js';
 
 const collator = new Intl.Collator('lt');
@@ -477,58 +477,133 @@ export function buildPairResults(dataset, { seasonId } = {}) {
   return { results, anomalies };
 }
 
-function pairRows(results, players, category) {
+const byTournamentOrder = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.tournamentId).localeCompare(String(b.tournamentId)));
+const sharedPlayers = (a, b) => a.filter((id) => b.includes(id)).length;
+
+/**
+ * Vienos kategorijos porų knyga (ledger): turnyrai apdorojami chronologiškai, o poros taškai kaupiami.
+ *
+ * PARTNERIO KEITIMO TAISYKLĖ (paveldėjimas):
+ *  - Pora, jau žaidusi šioje kategorijoje, išlaiko 100 % savo taškų.
+ *  - Nauja pora (pirmas jos turnyras kategorijoje) paveldi INHERITANCE_RATE (50 %) ankstesnės poros sukauptų taškų
+ *    TOS PAČIOS kategorijos, jei su ta pora ją sieja lygiai vienas žaidėjas. Ankstesnė pora savo taškų neprarandama.
+ *  - Jei nėra poros su bendru žaidėju (abu nauji), nepaveldima nieko.
+ *  - Jei kandidatų yra daugiau nei viena pora (neaišku, kuri teikia paveldėjimą), NEGUESSINAMA: pora žymima
+ *    `flag` (reikia patvirtinti), o paveldėjimas netaikomas, kol nepateiktas `inheritanceDecisions` sprendimas.
+ *  - Paveldėjimas apskaičiuojamas VIENĄ kartą – iš taškų, sukauptų iki naujos poros pirmo turnyro (ne iš dabartinių).
+ *    Tai grynas skaičiavimas iš tų pačių duomenų, todėl perkrovimas ar perdiegimas rezultato nekeičia.
+ * `limit` – kiek pirmų turnyrų apdoroti (judėjimui skaičiuoti lentelę prieš paskutinį turnyrą).
+ */
+function pairLedger(results, players, category, decisions, limit = Infinity) {
   const idx = playerIndex(players);
-  const groups = new Map();
-  for (const r of results) {
-    if (!r.counted || r.category !== category) continue;
-    if (!groups.has(r.pairKey)) groups.set(r.pairKey, []);
-    groups.get(r.pairKey).push(r);
+  const nameOf = (ids) => ids.map((id) => (idx.get(id) || {}).fullName || '—');
+  const mine = results.filter((r) => r.counted && r.category === category);
+  const tournaments = [...new Set(mine.map((r) => r.tournamentId))]
+    .map((id) => mine.find((r) => r.tournamentId === id))
+    .sort(byTournamentOrder)
+    .slice(0, limit);
+  const accounts = new Map();
+  const total = (a) => round2(a.own + a.inherited);
+  const summary = (a) => ({ pairKey: a.pairKey, names: nameOf(a.playerIds), points: total(a) });
+
+  for (const t of tournaments) {
+    const entries = mine.filter((r) => r.tournamentId === t.tournamentId).sort((x, y) => String(x.pairKey).localeCompare(String(y.pairKey)));
+    const before = [...accounts.values()];
+    // 1) paveldėjimas naujoms poroms – tik iš taškų, sukauptų iki šio turnyro
+    for (const r of entries) {
+      if (accounts.has(r.pairKey)) continue;
+      const acc = { pairKey: r.pairKey, playerIds: r.playerIds, own: 0, inherited: 0, inheritance: null, flag: null, results: [] };
+      const decision = decisions.get(`${category}|${r.pairKey}`);
+      const sources = before.filter((a) => sharedPlayers(a.playerIds, r.playerIds) === 1);
+      let source = null;
+      let manual = false;
+      if (decision) {
+        manual = true;
+        if (decision.inheritFrom) {
+          source = before.find((a) => a.pairKey === decision.inheritFrom && sharedPlayers(a.playerIds, r.playerIds) >= 1) || null;
+          if (!source) acc.flag = { code: 'invalid_decision', tournamentId: r.tournamentId, tournamentName: r.tournamentName, candidates: sources.map(summary) };
+        }
+      } else if (sources.length === 1) {
+        [source] = sources;
+      } else if (sources.length > 1) {
+        acc.flag = { code: 'ambiguous_inheritance', tournamentId: r.tournamentId, tournamentName: r.tournamentName, candidates: sources.map(summary) };
+      }
+      if (source) {
+        const basis = total(source);
+        acc.inherited = round2(basis * INHERITANCE_RATE);
+        acc.inheritance = {
+          fromPairKey: source.pairKey, fromNames: nameOf(source.playerIds), basis, rate: INHERITANCE_RATE, points: acc.inherited,
+          tournamentId: r.tournamentId, tournamentName: r.tournamentName, manual,
+        };
+      }
+      accounts.set(r.pairKey, acc);
+    }
+    // 2) šio turnyro taškai
+    for (const r of entries) {
+      const acc = accounts.get(r.pairKey);
+      acc.own = round2(acc.own + r.points);
+      acc.results.push(r);
+    }
   }
-  const rows = [...groups.entries()].map(([pairKey, list]) => {
-    list.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : String(x.tournamentId).localeCompare(String(y.tournamentId))));
-    const latest = list[list.length - 1];
-    const names = latest.playerIds.map((id) => (idx.get(id) || {}).fullName || '—');
+
+  const rows = [...accounts.values()].map((a) => {
+    const names = nameOf(a.results[a.results.length - 1].playerIds);
     return {
-      pairKey,
-      playerIds: latest.playerIds,
+      pairKey: a.pairKey,
+      playerIds: a.results[a.results.length - 1].playerIds,
       names,
       name: names.join(' / '),
-      points: round2(list.reduce((s, r) => s + r.points, 0)),
-      played: list.length,
-      wins: list.filter((r) => r.position === 1).length,
-      seconds: list.filter((r) => r.position === 2).length,
-      results: list,
+      ownPoints: a.own,
+      inheritedPoints: a.inherited,
+      points: total(a),
+      played: a.results.length,
+      wins: a.results.filter((r) => r.position === 1).length,
+      seconds: a.results.filter((r) => r.position === 2).length,
+      results: a.results,
+      inheritance: a.inheritance,
+      flag: a.flag,
     };
   });
   // 1) taškai 2) pergalės 3) antros vietos 4) sužaisti turnyrai 5) ta pati vieta
-  return rankRows(rows, (r) => [r.points, r.wins, r.seconds, r.played], (r) => r.name);
+  return { rows: rankRows(rows, (r) => [r.points, r.wins, r.seconds, r.played], (r) => r.name), tournaments };
+}
+
+function decisionMap(dataset) {
+  const resolve = makeResolver(dataset.players);
+  const map = new Map();
+  for (const d of dataset.inheritanceDecisions || []) {
+    if (!d || !PAIR_CATEGORIES.includes(d.category) || !Array.isArray(d.playerIds) || d.playerIds.length !== 2) continue;
+    const key = pairKeyOf(d.playerIds.map(resolve));
+    const from = Array.isArray(d.inheritFrom) && d.inheritFrom.length === 2 ? pairKeyOf(d.inheritFrom.map(resolve)) : null;
+    map.set(`${d.category}|${key}`, { inheritFrom: from });
+  }
+  return map;
 }
 
 /**
- * Porų reitingai: { categories: { elite: [...], challenge: [...] }, movementAvailable: {elite, challenge}, results, anomalies }.
- * Eilutė: { position, tied, names, name, points, played, wins, seconds, results, movement }.
+ * Porų reitingai: { categories: { elite: [...], challenge: [...] }, movementAvailable, inheritanceFlags, results, anomalies }.
+ * Eilutė: { position, tied, names, name, points (= ownPoints + inheritedPoints), ownPoints, inheritedPoints,
+ *           inheritance, flag, played, wins, seconds, results, movement }.
  * Judėjimas rodomas tik kategorijoje, kurioje yra bent du patvirtinti turnyrai (yra su kuo lyginti).
  */
 export function computePairRankings(dataset, { seasonId } = {}) {
   const { results, anomalies } = buildPairResults(dataset, { seasonId });
+  const decisions = decisionMap(dataset);
   const categories = {};
   const movementAvailable = {};
+  const inheritanceFlags = [];
   for (const category of PAIR_CATEGORIES) {
-    const rows = pairRows(results, dataset.players, category);
-    const tournaments = [...new Set(results.filter((r) => r.counted && r.category === category).map((r) => r.tournamentId))]
-      .map((id) => results.find((r) => r.tournamentId === id))
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.tournamentId).localeCompare(String(b.tournamentId))));
+    const { rows, tournaments } = pairLedger(results, dataset.players, category, decisions);
     movementAvailable[category] = tournaments.length >= 2;
     if (movementAvailable[category]) {
-      const latest = tournaments[tournaments.length - 1].tournamentId;
-      const prev = new Map(pairRows(results.filter((r) => r.tournamentId !== latest), dataset.players, category).map((r) => [r.pairKey, r.position]));
+      const prev = new Map(pairLedger(results, dataset.players, category, decisions, tournaments.length - 1).rows.map((r) => [r.pairKey, r.position]));
       categories[category] = rows.map((r) => ({ ...r, movement: prev.has(r.pairKey) ? prev.get(r.pairKey) - r.position : 'new' }));
     } else {
       categories[category] = rows.map((r) => ({ ...r, movement: null }));
     }
+    categories[category].filter((r) => r.flag).forEach((r) => inheritanceFlags.push({ category, pairKey: r.pairKey, names: r.names, ...r.flag }));
   }
-  return { categories, movementAvailable, results, anomalies };
+  return { categories, movementAvailable, inheritanceFlags, results, anomalies };
 }
 
 /**
