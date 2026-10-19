@@ -21,10 +21,15 @@ export const renderEmpty = (title, text) => `<div class="state state-empty"><p><
 
 export const EMPTY_OFFICIAL = ['Oficialių rezultatų dar nėra', 'Reitingas atsiras, kai organizatoriai paskelbs pirmojo turnyro rezultatus. Juodraščiai ir nepatvirtinti rezultatai į reitingą neįskaičiuojami.'];
 
-/** Vietinis režimas (Supabase neprijungtas): aiškiai pasakoma, kad bendros duomenų bazės dar nėra. */
-export const EMPTY_LOCAL = ['Oficialių rezultatų dar nėra', 'Bendra reitingų duomenų bazė dar neprijungta, todėl paskelbtų rezultatų kol kas nėra. Kalendorių, turnyrų sąrašą ir taškų taisykles galite peržiūrėti.'];
-
 export const UNCONFIGURED = ['Reitingai dar neprijungti', 'Reitingų duomenų bazė dar nesukonfigūruota, todėl oficialių rezultatų parodyti negalime. Kalendorių (skiltis „Turnyrų rezultatai“) ir taisykles galite peržiūrėti.'];
+
+/** Pastabos apie duomenų pilnumą (statinio rezultatų failo režimas). */
+export function renderDataNotices({ incomplete = [], limitedNames = 0 } = {}) {
+  const groupText = (g) => `${g.position}–${g.position + g.declared - 1} vietų grupėje žinomos ${g.known} iš ${g.declared} komandų (trūksta ${g.missing})`;
+  const parts = incomplete.map((x) => `<li><strong>${esc(x.name)}:</strong> ${x.groups.map(groupText).map(esc).join('; ')}. Trūkstama komanda nekuriama ir nepridedama; likusių komandų taškai skaičiuojami pagal visą grupę ir nepasikeis, kai ji bus patvirtinta.</li>`);
+  if (limitedNames) parts.push(`<li>${esc(limitedNames)} žaidėjų nurodyti tik vardu arba vardu ir pavardės inicialu – pilni vardai nepatvirtinti. Vienodi vardai skirtinguose turnyruose laikomi tuo pačiu žaidėju.</li>`);
+  return `<div class="notice info" role="note" id="static-info">Oficialūs rezultatai paskelbti iš bendro duomenų failo – visi lankytojai mato tuos pačius duomenis.</div>${parts.length ? `<div class="notice warning" role="note" id="incomplete-notice"><strong>Duomenys nepilni.</strong><ul>${parts.join('')}</ul></div>` : ''}`;
+}
 
 /** Nuostatų problema: tuščia konfigūracija – paprastas pranešimas; neteisingos / privilegijuotos reikšmės – konkreti priežastis. */
 export function renderSetupProblem(problem) {
@@ -196,6 +201,7 @@ export function renderTournamentDetail({ view, backHref }) {
       : 'Šio renginio taškų sistema dar nenustatyta, todėl rezultatai į jokį reitingą neįskaičiuojami.';
     body = `<div class="impact">${affects}</div>
       <p class="muted">Komandų: ${esc(view.teamCount)}${t.revision > 1 ? ` · Rezultatai pataisyti (versija ${esc(t.revision)})` : ''}</p>
+      ${(view.incomplete || []).map((g) => `<div class="notice warning" data-incomplete="${esc(g.position)}">Nepilni duomenys: ${esc(g.position)}–${esc(g.position + g.declared - 1)} vietų grupėje žinomos ${esc(g.known)} iš ${esc(g.declared)} komandų (trūksta ${esc(g.missing)}). Trūkstama komanda nekuriama; taškai (po ${esc((view.teams.find((x) => x.position === g.position) || {}).points)}) skaičiuojami pagal visą grupę.</div>`).join('')}
       <div class="ttable-wrap"><table class="ttable"><thead><tr><th>Vieta</th><th>Komanda</th><th>Taškai kiekvienam žaidėjui</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   return `<a class="back" href="${esc(backHref)}">← Visi turnyrai</a>

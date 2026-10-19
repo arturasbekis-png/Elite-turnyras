@@ -1,10 +1,9 @@
 # ELITE reitingai – Supabase paruošimas (žingsnis po žingsnio)
 
-> **Svarbu: kol Supabase neprijungtas (`ranking/runtime-config.js` tuščias), svetainė veikia „vietiniu režimu“.**
-> Reitingų puslapis atsidaro ir rodo kalendorių bei taisykles, o administravimo puslapis leidžia išbandyti darbą
-> be prisijungimo, bet duomenys saugomi **tik jūsų naršyklėje** ir **nėra viešai paskelbti** – kiti lankytojai jų
-> nemato. Tikram paskelbimui reikalingi šie žingsniai.
-
+> **Svarbu: kol Supabase neprijungtas (`ranking/runtime-config.js` tuščias), svetainė veikia be duomenų bazės.**
+> Viešas reitingų puslapis rodo oficialius rezultatus iš failo `data/official-results.json` (juos mato visi vienodai),
+> o administravimo puslapis leidžia tik vietinius juodraščius jūsų naršyklėje – jie viešai nerodomi. Tikram
+> paskelbimui per naršyklę (be failo redagavimo) reikalingi šie žingsniai.
 
 Šis vadovas skirtas žmogui be programavimo patirties. Visi veiksmai atliekami **naršyklėje**: Supabase svetainėje ir
 GitHub svetainėje. Viskas nemokama (Supabase „Free“ planas). Kodo keisti nereikia – tik į vieną failą

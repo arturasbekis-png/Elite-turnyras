@@ -5,7 +5,7 @@ import { createClient } from './api.js';
 import { RUNTIME } from './runtime-config.js';
 import { computeRankings, computeAllTime, tournamentView } from './engine.js';
 import { applyView, hasGenderData, withCalendar, pickDefaultSeason, parseRoute, buildRoute } from './view.js';
-import { getLocalStorage, readLocalDataset, hasLocalData, emptyDataset } from './local-store.js';
+import { loadStaticResults } from './static-results.js';
 import * as R from './render.js';
 
 const app = document.getElementById('app');
@@ -14,7 +14,7 @@ const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const demoRequested = isLocal && new URLSearchParams(location.search).has('demo');
 
 const state = {
-  status: 'loading', error: '', data: null, demo: false, configured: true, setup: null, localMode: false, localHasData: false,
+  status: 'loading', error: '', data: null, demo: false, configured: true, setup: null, staticMode: false,
   seasonId: null, tab: 'bendras', tournamentId: null,
   query: '', sort: 'points', gender: '', tournamentFilter: 'all',
   expanded: new Set(), rankings: null, rankingsFor: null, playersById: new Map(),
@@ -39,13 +39,11 @@ async function load() {
     } else {
       state.setup = client.configProblem();
       if (state.setup && state.setup.status === 'missing') {
-        // Supabase dar neprijungtas: puslapis veikia be jo. Rodoma tik tai, kas išsaugota ŠIOJE naršyklėje (jei kas nors),
-        // ir tai aiškiai pažymima – kiti lankytojai šių duomenų nemato.
-        console.info('[ELITE reitingai] Supabase neprijungtas (ranking/runtime-config.js tuščias) – vietinis režimas.');
-        const local = readLocalDataset(getLocalStorage());
-        raw = local || emptyDataset();
-        state.localMode = true;
-        state.localHasData = hasLocalData(local);
+        // Supabase neprijungtas: oficialūs rezultatai imami iš statinio failo data/official-results.json,
+        // todėl visi lankytojai mato tuos pačius duomenis. Vietinė naršyklės saugykla čia nenaudojama.
+        console.info('[ELITE reitingai] Supabase neprijungtas – rezultatai įkeliami iš data/official-results.json.');
+        raw = await loadStaticResults();
+        state.staticMode = true;
       } else {
         console.error(`[ELITE reitingai] Duomenų bazės nuostatos netinkamos (ranking/runtime-config.js): ${state.setup ? `${state.setup.title}. ${state.setup.text}` : ''}`);
         raw = { seasons: [], tournaments: [], players: [], participations: [] };
@@ -109,14 +107,11 @@ function render() {
   const tabs = TAB_LABELS.map(([id, label]) => `<a role="tab" class="tab${state.tab === id ? ' active' : ''}" aria-selected="${state.tab === id}" href="${buildRoute({ tab: id, seasonId: state.seasonId }, defaultSeason())}">${label}</a>`).join('');
   const demoBanner = state.demo ? '<div class="demo-banner" role="note">⚠ DEMONSTRACINIAI DUOMENYS – tai ne oficialūs rezultatai (rodoma tik lokaliai kūrimo tikslais).</div>' : '';
 
-  const localBanner = !state.localMode ? ''
-    : state.localHasData
-      ? '<div class="demo-banner" role="note" id="local-banner">⚠ VIETINIAI DUOMENYS – rodoma tik tai, kas išsaugota ŠIOJE naršyklėje per administravimo puslapį. Bendra duomenų bazė neprijungta: kiti lankytojai šių rezultatų nemato, jie nėra viešai paskelbti.</div>'
-      : '<div class="notice info" role="note" id="local-info">Bendra rezultatų duomenų bazė dar neprijungta, todėl oficialių reitingų čia kol kas nėra. Kalendorius ir taškų taisyklės veikia.</div>';
+  const staticBanner = state.staticMode ? R.renderDataNotices(dataNotices()) : '';
 
   const testBanner = currentSeason && currentSeason.isTest ? '<div class="demo-banner" role="note" id="test-banner">⚠ BANDOMASIS SEZONAS – tai bandymo duomenys sistemai patikrinti, o ne oficialūs rezultatai. Jie į oficialų reitingą neįskaičiuojami ir bus ištrinti.</div>' : '';
 
-  app.innerHTML = `${demoBanner}${localBanner}${testBanner}
+  app.innerHTML = `${demoBanner}${staticBanner}${testBanner}
     <section class="card toolbar"><div class="toolbar-row">${seasonSelect}<span class="meta">${R.esc(updated)}</span></div></section>
     <nav class="tabs" role="tablist" aria-label="Reitingų skiltys">${tabs}</nav>
     <section class="panel" id="panel" role="tabpanel"></section>
@@ -124,6 +119,16 @@ function render() {
     <div id="alltime"></div>`;
   renderPanel();
   if (state.configured) document.getElementById('alltime').innerHTML = R.renderAllTime(computeAllTime(state.data));
+}
+
+/** Pastabos apie nepilnus duomenis (statinio failo režimas): nepilnos pasidalintos vietos ir ne pilni žaidėjų vardai. */
+function dataNotices() {
+  const incomplete = state.data.tournaments
+    .filter((t) => t.seasonId === state.seasonId)
+    .map((t) => ({ name: t.name, groups: tournamentView(state.data, t.id).incomplete }))
+    .filter((x) => x.groups.length);
+  const limitedNames = state.data.players.filter((p) => p.nameStatus === 'initial' || p.nameStatus === 'first_name_only').length;
+  return { incomplete, limitedNames };
 }
 
 function seasonScoringVersion() {
@@ -145,7 +150,7 @@ function renderPanel() {
   const rows = isOverall ? r.overall : r.categories[state.tab];
   const label = isOverall ? 'Bendras reitingas' : state.tab.toUpperCase();
   if (!r.overall.length) {
-    panel.innerHTML = `<div class="card">${R.renderEmpty(...(state.localMode && !state.localHasData ? R.EMPTY_LOCAL : R.EMPTY_OFFICIAL))}</div>`;
+    panel.innerHTML = `<div class="card">${R.renderEmpty(...R.EMPTY_OFFICIAL)}</div>`;
     return;
   }
   panel.innerHTML = `<div class="card list-card"><h2 class="sr">${R.esc(label)}</h2>

@@ -54,13 +54,40 @@ export function sharedPlacePoints(bands, position, size = 1) {
   return round2(sum / size);
 }
 
-/** Kiek komandų dalijasi kiekvieną vietą: Map(vieta → komandų skaičius). Ignoruoja netinkamas vietas. */
+/**
+ * Kiek komandų dalijasi kiekvieną vietą: Map(vieta → komandų skaičius). Ignoruoja netinkamas vietas.
+ * Jei įrašas nurodo `groupSize` (pvz. šaltinyje parašyta „5–8“, t. y. 4 komandos, nors žinomos tik 3), grupės dydis
+ * yra didesnis iš žinomų komandų ir deklaruoto dydžio – taškai nepriklauso nuo to, kad viena komanda dar nesuvesta.
+ */
 export function positionCounts(list) {
   const counts = new Map();
   for (const p of list || []) {
     if (Number.isInteger(p.position) && p.position >= 1) counts.set(p.position, (counts.get(p.position) || 0) + 1);
   }
+  for (const p of list || []) {
+    if (Number.isInteger(p.position) && p.position >= 1 && Number.isInteger(p.groupSize) && p.groupSize > (counts.get(p.position) || 0)) {
+      counts.set(p.position, p.groupSize);
+    }
+  }
   return counts;
+}
+
+/**
+ * Nepilnos pasidalintų vietų grupės: deklaruotas grupės dydis didesnis už žinomų komandų skaičių.
+ * Grąžina [{ position, declared, known, missing }]. Trūkstamos komandos NIEKADA nekuriamos.
+ */
+export function incompleteGroups(list) {
+  const known = new Map();
+  const declared = new Map();
+  for (const p of list || []) {
+    if (!(Number.isInteger(p.position) && p.position >= 1)) continue;
+    known.set(p.position, (known.get(p.position) || 0) + 1);
+    if (Number.isInteger(p.groupSize)) declared.set(p.position, Math.max(declared.get(p.position) || 0, p.groupSize));
+  }
+  return [...declared.entries()]
+    .filter(([position, size]) => size > known.get(position))
+    .map(([position, size]) => ({ position, declared: size, known: known.get(position), missing: size - known.get(position) }))
+    .sort((a, b) => a.position - b.position);
 }
 
 /** Taškai vienai komandai, atsižvelgiant į tai, kiek komandų dalijasi jos vietą tame pačiame turnyre. */
@@ -180,6 +207,14 @@ export function validateResults({ tournament, participations, players }) {
       });
     }
   }
+
+  list.forEach((p, i) => {
+    if (p.groupSize == null) return;
+    const same = list.filter((q) => q.position === p.position).length;
+    if (!Number.isInteger(p.groupSize) || p.groupSize < same || p.groupSize < 2) {
+      add('invalid_group_size', `Komanda ${teamLabel(p, i)}: nurodytas netinkamas pasidalintos vietos grupės dydis (${p.groupSize}).`, { participationId: p.id });
+    }
+  });
 
   if (tournament && !scoringTableFor(tournament.type)) {
     warnings.push({ code: 'unscored_event', message: 'Šio renginio taškų sistema dar nenustatyta – rezultatai bus paskelbti, bet į reitingus neįskaičiuojami.' });
@@ -441,6 +476,7 @@ export function tournamentView(dataset, tournamentId) {
     scored: Boolean(bands),
     teamCount: teams.length,
     teams,
+    incomplete: official ? incompleteGroups(parts) : [],
     affects: official && bands && type && type.category ? ['overall', type.category] : [],
   };
 }

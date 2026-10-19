@@ -1,0 +1,282 @@
+{
+  "schemaVersion": 1,
+  "description": "Oficialūs ELITE sezono 2026–2027 rezultatai (statinis failas). Rodomi visiems lankytojams. Taškai NESAUGOMI čia – juos apskaičiuoja ranking/engine.js.",
+  "publishedAt": "2026-10-19T20:00:00+03:00",
+  "notes": [
+    "Žaidėjų vardai pateikti kaip gauti: dalis tik su pavardės inicialu, dalis tik vardu. Pilnos pavardės nepatvirtintos ir nekuriamos.",
+    "Vienodi vardai skirtinguose turnyruose laikomi tuo pačiu žaidėju (Lea D., Danielė Š.) pagal pateiktus rezultatus; žaidėjai nejungiami vien dėl panašių vardų.",
+    "CHALLENGE #1 5–8 vietų grupė nepilna: pateiktos tik 3 komandos, ketvirta komanda trūksta (groupSize: 4). Ji nekuriama."
+  ],
+  "tournaments": [
+    {
+      "id": "2026-2027-elite-1",
+      "seasonId": "2026-2027",
+      "type": "elite",
+      "number": 1,
+      "name": "ELITE #1",
+      "date": "2026-10-11",
+      "startTime": "11:00",
+      "status": "finalized",
+      "allowTies": true,
+      "revision": 1
+    },
+    {
+      "id": "2026-2027-challenge-1",
+      "seasonId": "2026-2027",
+      "type": "challenge",
+      "number": 1,
+      "name": "CHALLENGE #1",
+      "date": "2026-10-18",
+      "startTime": "11:00",
+      "status": "finalized",
+      "allowTies": true,
+      "revision": 1
+    }
+  ],
+  "players": [
+    {
+      "id": "p-sofija-b",
+      "fullName": "Sofija B.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-emilija-p",
+      "fullName": "Emilija P.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-austeja-m",
+      "fullName": "Austėja M.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-lukrecija-u",
+      "fullName": "Lukrecija U.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-vakare-k",
+      "fullName": "Vakarė K.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-upe-n",
+      "fullName": "Upė N.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-evgenija-m",
+      "fullName": "Evgenija M.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-milda-r",
+      "fullName": "Milda R.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-lea-d",
+      "fullName": "Lea D.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-daniele-s",
+      "fullName": "Danielė Š.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-dite",
+      "fullName": "Ditė",
+      "nameStatus": "first_name_only"
+    },
+    {
+      "id": "p-gabriele",
+      "fullName": "Gabrielė",
+      "nameStatus": "first_name_only"
+    },
+    {
+      "id": "p-rusne-a",
+      "fullName": "Rusnė A.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-lukne-m",
+      "fullName": "Luknė M.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-migle-u",
+      "fullName": "Miglė U.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-urte-g",
+      "fullName": "Urtė G.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-saule-r",
+      "fullName": "Saulė R.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-aureja-r",
+      "fullName": "Aurėja R.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-goda",
+      "fullName": "Goda",
+      "nameStatus": "first_name_only"
+    },
+    {
+      "id": "p-amelija",
+      "fullName": "Amelija",
+      "nameStatus": "first_name_only"
+    },
+    {
+      "id": "p-luka-b",
+      "fullName": "Luka B.",
+      "nameStatus": "initial"
+    },
+    {
+      "id": "p-adrian",
+      "fullName": "Adrian",
+      "nameStatus": "first_name_only"
+    },
+    {
+      "id": "p-nerile",
+      "fullName": "Nerilė",
+      "nameStatus": "first_name_only"
+    },
+    {
+      "id": "p-girmante",
+      "fullName": "Girmantė",
+      "nameStatus": "first_name_only"
+    }
+  ],
+  "participations": [
+    {
+      "id": "2026-2027-elite-1-t1",
+      "tournamentId": "2026-2027-elite-1",
+      "position": 1,
+      "playerIds": [
+        "p-sofija-b",
+        "p-emilija-p"
+      ]
+    },
+    {
+      "id": "2026-2027-elite-1-t2",
+      "tournamentId": "2026-2027-elite-1",
+      "position": 2,
+      "playerIds": [
+        "p-austeja-m",
+        "p-lukrecija-u"
+      ]
+    },
+    {
+      "id": "2026-2027-elite-1-t3",
+      "tournamentId": "2026-2027-elite-1",
+      "position": 3,
+      "playerIds": [
+        "p-vakare-k",
+        "p-upe-n"
+      ]
+    },
+    {
+      "id": "2026-2027-elite-1-t4",
+      "tournamentId": "2026-2027-elite-1",
+      "position": 4,
+      "playerIds": [
+        "p-evgenija-m",
+        "p-milda-r"
+      ]
+    },
+    {
+      "id": "2026-2027-elite-1-t5",
+      "tournamentId": "2026-2027-elite-1",
+      "position": 5,
+      "playerIds": [
+        "p-lea-d",
+        "p-daniele-s"
+      ],
+      "groupSize": 2
+    },
+    {
+      "id": "2026-2027-elite-1-t6",
+      "tournamentId": "2026-2027-elite-1",
+      "position": 5,
+      "playerIds": [
+        "p-dite",
+        "p-gabriele"
+      ],
+      "groupSize": 2
+    },
+    {
+      "id": "2026-2027-challenge-1-t1",
+      "tournamentId": "2026-2027-challenge-1",
+      "position": 1,
+      "playerIds": [
+        "p-rusne-a",
+        "p-lukne-m"
+      ]
+    },
+    {
+      "id": "2026-2027-challenge-1-t2",
+      "tournamentId": "2026-2027-challenge-1",
+      "position": 2,
+      "playerIds": [
+        "p-migle-u",
+        "p-urte-g"
+      ]
+    },
+    {
+      "id": "2026-2027-challenge-1-t3",
+      "tournamentId": "2026-2027-challenge-1",
+      "position": 3,
+      "playerIds": [
+        "p-saule-r",
+        "p-aureja-r"
+      ]
+    },
+    {
+      "id": "2026-2027-challenge-1-t4",
+      "tournamentId": "2026-2027-challenge-1",
+      "position": 4,
+      "playerIds": [
+        "p-goda",
+        "p-amelija"
+      ]
+    },
+    {
+      "id": "2026-2027-challenge-1-t5",
+      "tournamentId": "2026-2027-challenge-1",
+      "position": 5,
+      "playerIds": [
+        "p-daniele-s",
+        "p-lea-d"
+      ],
+      "groupSize": 4
+    },
+    {
+      "id": "2026-2027-challenge-1-t6",
+      "tournamentId": "2026-2027-challenge-1",
+      "position": 5,
+      "playerIds": [
+        "p-luka-b",
+        "p-adrian"
+      ],
+      "groupSize": 4
+    },
+    {
+      "id": "2026-2027-challenge-1-t7",
+      "tournamentId": "2026-2027-challenge-1",
+      "position": 5,
+      "playerIds": [
+        "p-nerile",
+        "p-girmante"
+      ],
+      "groupSize": 4
+    }
+  ]
+}

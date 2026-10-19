@@ -1,4 +1,15 @@
 // Testų pagalbinės funkcijos. Visi čia esantys žaidėjai ir rezultatai – TIK testų duomenys.
+import { readFileSync } from 'node:fs';
+
+/** Pakeičia fetch: data/official-results.json grąžinamas iš disko, bet kokia kita užklausa – klaida. */
+export function installStaticResultsFetch({ onRequest = () => {} } = {}) {
+  globalThis.fetch = async (url) => {
+    onRequest(String(url));
+    if (!String(url).endsWith('/data/official-results.json')) throw new Error(`netikėta užklausa: ${url}`);
+    const body = readFileSync(new URL('../data/official-results.json', import.meta.url), 'utf8');
+    return { ok: true, status: 200, json: async () => JSON.parse(body) };
+  };
+}
 
 export function player(id, extra = {}) {
   return { id, fullName: `Testinis ${id}`, gender: null, isActive: true, mergedInto: null, ...extra };

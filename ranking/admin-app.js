@@ -134,7 +134,7 @@ function renderApp() {
   const email = ui.backend.getSession && ui.backend.getSession() ? ui.backend.getSession().email : '';
   const demoBanner = demo ? '<div class="demo-banner" role="note">⚠ DEMONSTRACINIS REŽIMAS – duomenys laikomi tik atmintyje ir dingsta perkrovus puslapį. Tai ne oficiali saugykla.</div>' : '';
   const localBanner = ui.local
-    ? `<div class="demo-banner" role="note" id="local-banner">⚠ VIETINIS REŽIMAS – Supabase duomenų bazė neprijungta. Viskas, ką čia įvedate, saugoma TIK šioje naršyklėje (šiame įrenginyje) ir NĖRA viešai paskelbta: kiti lankytojai šių duomenų nemato. ${ui.localStorage ? 'Neišvalykite naršyklės duomenų, kitaip jie dings.' : '<strong>Ši naršyklė neleidžia saugoti duomenų – viskas dings uždarius ar perkrovus puslapį.</strong>'} Prisijungimo šiame režime nėra, todėl jis netinka bendram darbui.</div>`
+    ? `<div class="demo-banner" role="note" id="local-banner">⚠ VIETINIS REŽIMAS – Supabase duomenų bazė neprijungta. Viskas, ką čia įvedate, saugoma TIK šioje naršyklėje (šiame įrenginyje) ir yra tik juodraštis: viešame reitingų puslapyje to NĖRA, kiti lankytojai šių duomenų nemato. Viešai rodomi rezultatai imami iš saugyklos failo <code>data/official-results.json</code>. ${ui.localStorage ? 'Neišvalykite naršyklės duomenų, kitaip vietiniai duomenys dings.' : '<strong>Ši naršyklė neleidžia saugoti duomenų – viskas dings uždarius ar perkrovus puslapį.</strong>'} Prisijungimo šiame režime nėra, todėl jis netinka bendram darbui.</div>`
     : '';
   const tabs = TABS.filter(([id]) => !(ui.local && id === 'test')).map(([id, label]) => `<button type="button" class="tab${ui.tab === id ? ' active' : ''}" data-act="tab" data-tab="${id}">${label}</button>`).join('');
   let body = '<div class="state state-loading"><div class="spinner"></div><p>Kraunama…</p></div>';
@@ -205,7 +205,7 @@ function renderResults() {
         <button type="button" class="btn secondary" data-act="save-draft"${s.busy ? ' disabled' : ''}>Išsaugoti juodraštį</button>
         <button type="button" class="btn secondary" data-act="save-awaiting"${s.busy ? ' disabled' : ''}>Pažymėti „Laukiama patvirtinimo“</button>
         <button type="button" class="btn" data-act="finalize"${s.busy ? ' disabled' : ''}>${ui.local ? 'PATVIRTINTI (TIK ŠIOJE NARŠYKLĖJE)' : 'PASKELBTI OFICIALIUS REZULTATUS'}</button></div>
-       <p class="muted">${ui.local ? 'Vietiniame režime niekas nepaskelbiama viešai. Juodraštis taškų neskiria; patvirtinti rezultatai matomi tik šioje naršyklėje.' : 'Juodraštis viešame reitinge nerodomas ir taškų neskiria. Taškai atsiranda tik po paskelbimo.'}</p>
+       <p class="muted">${ui.local ? 'Vietiniame režime niekas nepaskelbiama viešai. Juodraštis taškų neskiria; patvirtinti rezultatai lieka tik šioje naršyklėje ir viešame puslapyje nerodomi.' : 'Juodraštis viešame reitinge nerodomas ir taškų neskiria. Taškai atsiranda tik po paskelbimo.'}</p>
        <div class="toolbar-row"><label class="field"><span class="lbl">Statusas</span><select data-status><option value="planned">Suplanuotas</option><option value="in_progress">Vyksta</option><option value="draft">Rezultatų juodraštis</option><option value="awaiting_confirmation">Laukiama patvirtinimo</option></select></label>
         <button type="button" class="btn secondary" data-act="set-status">Nustatyti statusą</button>
         <label class="check"><input type="checkbox" data-ties${t.allowTies ? ' checked' : ''}> Leisti pasidalintas vietas (1-2-2-4)</label></div>`;
@@ -213,7 +213,7 @@ function renderResults() {
   return `${picker}<div class="card">
     <div class="ttop"><div><h2 style="margin:0">${esc(type.emoji || '')} ${esc(t.name)}</h2><div class="tdate">${esc(formatDate(t.date))} · ${esc(type.label)}</div></div>${statusBadge(t.status)}</div>
     ${finalized ? (ui.local
-      ? `<div class="notice warning" id="local-finalized">Rezultatai patvirtinti TIK šioje naršyklėje (versija ${esc(t.revision)}) – viešai NEPASKELBTI. Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html" target="_blank" rel="noopener">Atidaryti reitingų puslapį (matoma tik šioje naršyklėje)</a></div>`
+      ? `<div class="notice warning" id="local-finalized">Rezultatai patvirtinti TIK šioje naršyklėje (versija ${esc(t.revision)}) – viešai NEPASKELBTI ir viešame reitingų puslapyje nerodomi. Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html" target="_blank" rel="noopener">Atidaryti viešą reitingų puslapį (jame rodomi tik oficialūs rezultatai iš bendro failo)</a></div>`
       : `<div class="notice info">Rezultatai paskelbti (versija ${esc(t.revision)}). Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html${testSeason ? `#bendras?s=${esc(t.seasonId)}` : ''}" target="_blank" rel="noopener">Atidaryti viešą reitingą</a></div>`) : ''}
     ${testSeason ? `<div class="notice warning" id="test-season-note">BANDOMASIS turnyras: čia galite laisvai bandyti, rezultatai nėra oficialūs ir bus ištrinti skiltyje BANDYMAS. <a href="reitingai.html#bendras?s=${esc(t.seasonId)}" target="_blank" rel="noopener">Atidaryti bandomąjį viešą reitingą</a></div>` : ''}
     ${t.type === 'final' ? '<div class="notice info">BEACH LEAGUE FINAL taškų sistema nenustatyta – rezultatai bus paskelbti, bet į reitingus neįskaičiuojami.</div>' : ''}
@@ -403,7 +403,7 @@ const actions = {
     if (!preview || !preview.validation.valid) return;
     const t = ui.ctl.state.dataset.tournaments.find((x) => x.id === ui.ctl.state.tournamentId);
     if (ui.local) {
-      if (!window.confirm(`Patvirtinti „${t.name}“ rezultatus TIK šioje naršyklėje?\n\nTai NĖRA viešas paskelbimas: kiti lankytojai rezultatų nematys, kol nebus prijungta bendra duomenų bazė.`)) return;
+      if (!window.confirm(`Patvirtinti „${t.name}“ rezultatus TIK šioje naršyklėje?\n\nTai NĖRA viešas paskelbimas: rezultatų nematys joks lankytojas, įskaitant viešą reitingų puslapį.`)) return;
       await ui.ctl.finalize();
       return;
     }
