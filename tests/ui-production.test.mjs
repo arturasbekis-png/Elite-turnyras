@@ -5,13 +5,14 @@ import { installDom, tick } from './dom-stub.mjs';
 // Gamybinis serveris (GitHub Pages) + bandymas įjungti ?demo + nesukonfigūruota duomenų bazė.
 const dom = installDom({ hostname: 'arturasbekis-png.github.io', search: '?demo' });
 
-test('Gamyboje demonstraciniai duomenys niekada neįkeliami, o tuščias reitingas rodo aiškią būseną', async () => {
+test('Gamyboje demonstraciniai duomenys niekada neįkeliami, o neprijungta duomenų bazė rodo aiškią „neprijungta“ būseną', async () => {
   await import('../ranking/public-app.js');
   await tick();
   const app = dom.el('app').innerHTML;
   assert.ok(!app.includes('DEMONSTRACINIAI'), 'demo režimas gamyboje išjungtas');
   assert.ok(!app.includes('Demo '), 'jokių demonstracinių vardų');
-  assert.ok(dom.el('panel').innerHTML.includes('Oficialių rezultatų dar nėra'), 'tuščia būsena');
+  assert.ok(dom.el('panel').innerHTML.includes('Reitingai dar neprijungti'), 'neprijungta būsena');
+  assert.ok(!dom.el('panel').innerHTML.includes('Oficialių rezultatų dar nėra'), 'nemeluojama, kad reitingas „tuščias“');
   assert.ok(app.includes('Reitingavimo taisyklės'));
   assert.ok(app.includes('9–12') && app.includes('13–16'));
 
@@ -25,6 +26,6 @@ test('Gamyboje demonstraciniai duomenys niekada neįkeliami, o tuščias reiting
   // Kategorijų skirtukuose tuščia būsena be klaidų
   for (const tab of ['#elite', '#challenge', '#future']) {
     dom.loc.hash = tab;
-    assert.ok(dom.el('panel').innerHTML.includes('Oficialių rezultatų dar nėra'), tab);
+    assert.ok(dom.el('panel').innerHTML.includes('Reitingai dar neprijungti'), tab);
   }
 });

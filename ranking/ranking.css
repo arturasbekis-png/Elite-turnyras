@@ -62,6 +62,8 @@ input:focus,select:focus,textarea:focus{outline:2px solid #5d42e8;border-color:#
 .notice.success{background:#e5f8ec;color:#158640}
 .notice.error{background:#fde7e7;color:#a12626}
 .notice.info{background:#e4f2ff;color:#0871c9}
+.notice.warning{background:#fff4d6;color:#8a5a00;border:1px solid #f1c75b}
+.pid{font-size:11px;word-break:break-all;color:#59647a}
 
 /* Reitingų sąrašai */
 .cat-banner{border-radius:12px;padding:10px 14px;margin:2px 8px 10px;font-weight:900;font-size:14px}
@@ -179,3 +181,8 @@ textarea{width:100%}
   .ttable.edit td{display:block;border:0;padding:4px 0}
   .ttable.edit td[data-label]::before{content:attr(data-label);display:block;font-size:11px;font-weight:900;color:#647080;text-transform:uppercase}
 }
+
+/* Ilgi pasirinkimų tekstai (pvz. turnyrų sąrašas) neturi plėsti puslapio telefone */
+.field{min-width:0}
+.field select,.field input{max-width:100%}
+.toolbar-row .field.grow{flex:1 1 220px}

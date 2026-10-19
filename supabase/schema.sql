@@ -58,6 +58,31 @@ create table if not exists public.players (
   check (merged_into is null or merged_into <> id)
 );
 
+-- Vardas ir pavardė saugomi atskirai; full_name visada apskaičiuojamas serveryje (trigeris žemiau),
+-- todėl viešas reitingas ir variklis toliau naudoja vieną full_name lauką.
+alter table public.players add column if not exists first_name text;
+alter table public.players add column if not exists last_name text;
+
+create or replace function public._players_sync_name() returns trigger
+language plpgsql as $$
+begin
+  if new.first_name is not null or new.last_name is not null then
+    new.first_name := btrim(regexp_replace(coalesce(new.first_name, ''), '\s+', ' ', 'g'));
+    new.last_name := btrim(regexp_replace(coalesce(new.last_name, ''), '\s+', ' ', 'g'));
+    if new.first_name = '' or new.last_name = '' then
+      raise exception 'invalid_name';
+    end if;
+    new.full_name := new.first_name || ' ' || new.last_name;
+  elsif new.full_name is null or btrim(new.full_name) = '' then
+    raise exception 'invalid_name';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists players_sync_name on public.players;
+create trigger players_sync_name before insert or update on public.players
+  for each row execute function public._players_sync_name();
+
 -- Komandos dalyvavimas turnyre (dalyvavimo įrašas). Komandos vardas NĖRA žaidėjo tapatybė.
 create table if not exists public.participations (
   id uuid primary key default gen_random_uuid(),
@@ -448,8 +473,10 @@ drop policy if exists players_insert on public.players;
 create policy players_insert on public.players for insert to authenticated with check (public.is_admin());
 drop policy if exists players_update on public.players;
 create policy players_update on public.players for update to authenticated using (public.is_admin()) with check (public.is_admin());
-grant insert (full_name, gender, bio) on public.players to authenticated;
-grant update (full_name, gender, bio, is_active) on public.players to authenticated;
+-- full_name klientas rašyti negali: jį apskaičiuoja trigeris iš vardo ir pavardės.
+revoke insert, update on public.players from authenticated;
+grant insert (first_name, last_name, gender, bio) on public.players to authenticated;
+grant update (first_name, last_name, gender, bio, is_active) on public.players to authenticated;
 
 -- Funkcijų teisės.
 grant execute on function public.is_admin() to authenticated;

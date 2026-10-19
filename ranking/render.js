@@ -21,6 +21,8 @@ export const renderEmpty = (title, text) => `<div class="state state-empty"><p><
 
 export const EMPTY_OFFICIAL = ['Oficialių rezultatų dar nėra', 'Reitingas atsiras, kai organizatoriai paskelbs pirmojo turnyro rezultatus. Juodraščiai ir nepatvirtinti rezultatai į reitingą neįskaičiuojami.'];
 
+export const UNCONFIGURED = ['Reitingai dar neprijungti', 'Reitingų duomenų bazė dar nesukonfigūruota, todėl oficialių rezultatų parodyti negalime. Kalendorių (skiltis „Turnyrų rezultatai“) ir taisykles galite peržiūrėti.'];
+
 // ───────────────────────── Bendri elementai ─────────────────────────
 
 function posCell(row) {

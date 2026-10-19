@@ -14,6 +14,7 @@ export function installDom({ hostname = 'localhost', search = '', hash = '' } = 
   const selectors = new Map();
   globalThis.document = {
     getElementById: el,
+    querySelectorAll: () => [],
     querySelector: (selector) => (selector === '.controls .count' ? el('count') : selectors.get(selector) || null),
     createElement: () => ({ click() {}, remove() {}, set href(_) {}, set download(_) {} }),
     body: { appendChild() {} },

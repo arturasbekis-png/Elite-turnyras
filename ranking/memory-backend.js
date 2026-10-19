@@ -4,6 +4,7 @@
 
 import { saveDraft, finalizeTournament, correctTournament, mergePlayers, DomainError } from './domain.js';
 import { ApiError, messageFor } from './api.js';
+import { buildName, nameParts } from './names.js';
 
 const clone = (value) => JSON.parse(JSON.stringify(value));
 
@@ -40,9 +41,10 @@ export function createMemoryBackend(initial, { actor = 'demo@local' } = {}) {
 
     loadAdminDataset: async () => clone(data),
 
-    createPlayer: guard(({ fullName, gender, bio }) => {
-      if (!fullName || !fullName.trim()) throw new DomainError('invalid_name', 'Įveskite žaidėjo vardą ir pavardę.');
-      const player = { id: `pl-${nextId()}`, fullName: fullName.trim(), gender: gender || null, bio: bio || null, isActive: true, mergedInto: null };
+    createPlayer: guard(({ firstName, lastName, gender, bio }) => {
+      const name = buildName(firstName, lastName);
+      if (!name) throw new DomainError('invalid_name', 'Įveskite žaidėjo vardą ir pavardę.');
+      const player = { id: `pl-${nextId()}`, ...name, gender: gender || null, bio: bio || null, isActive: true, mergedInto: null };
       data.players.push(player);
       return player;
     }),
@@ -50,9 +52,11 @@ export function createMemoryBackend(initial, { actor = 'demo@local' } = {}) {
     updatePlayer: guard((id, patch) => {
       const player = data.players.find((p) => p.id === id);
       if (!player) throw new DomainError('player_not_found', 'Žaidėjas nerastas.');
-      if (patch.fullName !== undefined) {
-        if (!patch.fullName.trim()) throw new DomainError('invalid_name', 'Įveskite žaidėjo vardą ir pavardę.');
-        player.fullName = patch.fullName.trim();
+      if (patch.firstName !== undefined || patch.lastName !== undefined) {
+        const current = nameParts(player);
+        const name = buildName(patch.firstName !== undefined ? patch.firstName : current.firstName, patch.lastName !== undefined ? patch.lastName : current.lastName);
+        if (!name) throw new DomainError('invalid_name', 'Įveskite žaidėjo vardą ir pavardę.');
+        Object.assign(player, name);
       }
       if (patch.gender !== undefined) player.gender = patch.gender || null;
       if (patch.bio !== undefined) player.bio = patch.bio || null;

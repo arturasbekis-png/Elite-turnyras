@@ -45,6 +45,7 @@ export const ERROR_MESSAGES = {
   already_merged: 'Vienas iš įrašų jau sujungtas su kitu.',
   player_not_found: 'Žaidėjas nerastas.',
   invalid_season: 'Netinkami sezono duomenys.',
+  invalid_name: 'Įveskite žaidėjo vardą ir pavardę.',
 };
 
 export function messageFor(code, fallback) {
@@ -92,7 +93,7 @@ export function normalizeAdminRows({ seasons = [], tournaments = [], players = [
       startTime: t.start_time ? String(t.start_time).slice(0, 5) : null, status: t.status, allowTies: Boolean(t.allow_ties),
       scoringVersion: t.scoring_version || null, revision: t.revision || 0, finalizedAt: t.finalized_at || null,
     })),
-    players: players.map((p) => ({ id: p.id, fullName: p.full_name, gender: p.gender || null, bio: p.bio || null, isActive: p.is_active !== false, mergedInto: p.merged_into || null })),
+    players: players.map((p) => ({ id: p.id, firstName: p.first_name || null, lastName: p.last_name || null, fullName: p.full_name, gender: p.gender || null, bio: p.bio || null, isActive: p.is_active !== false, mergedInto: p.merged_into || null })),
     participations: participations.map((p) => ({
       id: p.id, tournamentId: p.tournament_id, teamName: p.team_name || null, position: p.final_position,
       playerIds: (p.participation_players || []).slice().sort((a, b) => a.slot - b.slot).map((x) => x.player_id),
@@ -243,22 +244,27 @@ export function createClient({ url, anonKey, fetchImpl, storage } = {}) {
     loadAdminDataset,
     /** Ar prisijungęs naudotojas yra administratorius (tikrina serveris, ne naršyklė). */
     async isAdmin() { return (await admin('is_admin', {})) === true; },
-    async createPlayer({ fullName, gender, bio }) {
+    async createPlayer({ firstName, lastName, gender, bio }) {
       await freshSession();
       const rows = await request('/rest/v1/players', {
         method: 'POST', withSession: true, extraHeaders: { Prefer: 'return=representation' },
-        body: { full_name: fullName, gender: gender || null, bio: bio || null },
+        body: { first_name: firstName, last_name: lastName, gender: gender || null, bio: bio || null },
       });
-      return rows && rows[0];
+      const row = rows && rows[0];
+      return row && { id: row.id, firstName: row.first_name, lastName: row.last_name, fullName: row.full_name };
     },
-    async updatePlayer(id, { fullName, gender, bio, isActive }) {
+    async updatePlayer(id, { firstName, lastName, gender, bio, isActive }) {
       await freshSession();
       const patch = {};
-      if (fullName !== undefined) patch.full_name = fullName;
+      if (firstName !== undefined) patch.first_name = firstName;
+      if (lastName !== undefined) patch.last_name = lastName;
       if (gender !== undefined) patch.gender = gender || null;
       if (bio !== undefined) patch.bio = bio || null;
       if (isActive !== undefined) patch.is_active = isActive;
-      return request(`/rest/v1/players?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', withSession: true, body: patch, extraHeaders: { Prefer: 'return=representation' } });
+      const rows = await request(`/rest/v1/players?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', withSession: true, body: patch, extraHeaders: { Prefer: 'return=representation' } });
+      // RLS neleidžia ne administratoriui keisti nieko; tuščias atsakymas reiškia, kad įrašas nepakeistas.
+      if (!rows || !rows.length) throw new ApiError('player_not_found', messageFor('player_not_found'));
+      return rows;
     },
     saveResults: (tournamentId, entries, status = 'draft') => admin('admin_save_results', { p_tournament_id: tournamentId, p_entries: toEntries(entries), p_status: status }),
     finalize: (tournamentId) => admin('admin_finalize_tournament', { p_tournament_id: tournamentId }),

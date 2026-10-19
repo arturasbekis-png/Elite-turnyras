@@ -16,8 +16,8 @@ async function setup() {
   const backend = createMemoryBackend(empty());
   const ctl = createAdminController(backend);
   await ctl.load();
-  for (const name of ['Testinis A', 'Testinis B', 'Testinis C', 'Testinis D', 'Testinis E', 'Testinis F']) {
-    assert.equal(await ctl.createPlayer({ fullName: name }), true);
+  for (const last of ['A', 'B', 'C', 'D', 'E', 'F']) {
+    assert.equal(await ctl.createPlayer({ firstName: 'Testinis', lastName: last }), true);
   }
   const id = (n) => ctl.state.dataset.players.find((p) => p.fullName === `Testinis ${n}`).id;
   return { backend, ctl, id };
@@ -136,18 +136,52 @@ test('Pataisymas: priežastis privaloma, tinkamas pataisymas perskaičiuoja, net
   void backend;
 });
 
-test('Žaidėjai: panašių vardų (net be diakritikų) įspėjimas, vardo taisymas, sujungimas', async () => {
+test('Žaidėjai: vardas ir pavardė privalomi, panašių vardų įspėjimas (diakritikai, tvarka), vardo taisymas, paieška, sujungimas', async () => {
   const { ctl, id } = await setup();
-  assert.equal(await ctl.createPlayer({ fullName: 'Žilvinas Žilys' }), true);
-  assert.equal(await ctl.createPlayer({ fullName: 'zilvinas  zilys' }), false, 'dublikatas neleidžiamas be patvirtinimo');
-  assert.match(ctl.state.notice.text, /jau yra/);
-  assert.equal(ctl.state.dataset.players.length, 7);
-  assert.equal(await ctl.createPlayer({ fullName: 'Žilvinas Žilys' }, { force: true }), true, 'sąmoningas kūrimas leidžiamas');
-  assert.equal(ctl.state.dataset.players.length, 8);
 
+  // Būtini abu laukai
+  assert.equal(await ctl.createPlayer({ firstName: 'Tik vardas', lastName: '' }), false);
+  assert.equal(await ctl.createPlayer({ firstName: '   ', lastName: 'Tik pavardė' }), false);
+  assert.match(ctl.state.notice.text, /vardą, ir pavardę/);
+  assert.equal(ctl.state.dataset.players.length, 6, 'nepilni duomenys neišsaugomi');
+
+  const created = await ctl.createPlayer({ firstName: '  Žilvinas ', lastName: 'Žilys  ' });
+  assert.equal(created, true);
+  assert.match(ctl.state.notice.text, /„Žilvinas Žilys“ išsaugotas/);
+  const stored = ctl.state.dataset.players.find((p) => p.fullName === 'Žilvinas Žilys');
+  assert.equal(stored.firstName, 'Žilvinas');
+  assert.equal(stored.lastName, 'Žilys');
+
+  // Dublikatai: skirtingos raidės, be diakritikų, kita žodžių tvarka
+  for (const [first, last] of [['zilvinas', 'zilys'], ['ŽILVINAS', 'ŽILYS'], ['Žilys', 'Žilvinas']]) {
+    assert.equal(await ctl.createPlayer({ firstName: first, lastName: last }), false, `${first} ${last}`);
+    assert.ok(ctl.state.pendingDuplicate, 'pateikiamas įspėjimas su esamu įrašu');
+    assert.equal(ctl.state.pendingDuplicate.similar[0].id, stored.id);
+    assert.equal(ctl.state.notice.type, 'warning');
+  }
+  assert.equal(ctl.state.dataset.players.length, 7, 'be patvirtinimo naujas įrašas nekuriamas');
+  // Skirtingas žmogus (kita pavardė) – be įspėjimo
+  assert.equal(await ctl.createPlayer({ firstName: 'Žilvinas', lastName: 'Žilinskas' }), true);
+  assert.equal(ctl.state.pendingDuplicate, null);
+  // Sąmoningas atskiro įrašo sukūrimas (tas pats vardas, kitas žmogus)
+  assert.equal(await ctl.createPlayer({ firstName: 'Žilvinas', lastName: 'Žilys' }, { force: true }), true, 'sąmoningas kūrimas leidžiamas');
+  assert.equal(ctl.state.dataset.players.length, 9);
+
+  // Paieška be diakritikų ir didžiųjų raidžių, taip pat pagal ID
+  assert.equal(ctl.searchPlayers('zilvinas').length, 3);
+  assert.equal(ctl.searchPlayers('ZILYS').length, 2);
+  assert.equal(ctl.searchPlayers('zilvinas zilys').length, 2);
+  assert.equal(ctl.searchPlayers(stored.id.slice(0, 8))[0].id, stored.id);
+  assert.equal(ctl.searchPlayers('nėra tokio').length, 0);
+
+  // Vardo taisymas išsaugo ID
   const zil = ctl.state.dataset.players.filter((p) => p.fullName === 'Žilvinas Žilys');
-  assert.equal(await ctl.updatePlayer(zil[0].id, { fullName: 'Žilvinas Žilys (pataisytas)' }), true);
-  assert.equal(ctl.state.dataset.players.length, 8, 'vardo pataisymas nekuria dublikato');
+  assert.equal(await ctl.updatePlayer(zil[0].id, { firstName: 'Žilvinas', lastName: 'Žilys-Pataisytas' }), true);
+  assert.equal(ctl.state.dataset.players.length, 9, 'vardo pataisymas nekuria dublikato');
+  const fixed = ctl.state.dataset.players.find((p) => p.id === zil[0].id);
+  assert.equal(fixed.fullName, 'Žilvinas Žilys-Pataisytas');
+  assert.equal(await ctl.updatePlayer(zil[0].id, { firstName: 'Žilvinas', lastName: '' }), false, 'tuščios pavardės neišsaugo');
+  assert.equal(ctl.state.dataset.players.find((p) => p.id === zil[0].id).fullName, 'Žilvinas Žilys-Pataisytas');
 
   // Sujungimas po rezultatų
   fillTeams(ctl, id, [[1, 'A', 'B'], [2, 'C', 'D']]);
@@ -209,9 +243,40 @@ test('L: kai serveris atmeta (neįgaliotas naudotojas), niekas nepasikeičia ir 
   assert.equal(await ctl.saveDraft(), false);
   assert.equal(ctl.state.notice.type, 'error');
   assert.match(ctl.state.notice.text, /administratoriaus teisių/);
-  assert.equal(await ctl.createPlayer({ fullName: 'Įsilaužėlis' }), false);
+  assert.equal(await ctl.createPlayer({ firstName: 'Įsilaužėlis', lastName: 'Testas' }), false);
   assert.equal(await ctl.upsertSeason({ id: 'x', label: 'x' }), false);
   const official2 = computeRankings(ctl.state.dataset, { seasonId: SEASON });
   assert.equal(official2.overall.length, 0);
   assert.equal(ctl.state.dataset.players.length, 0);
+});
+
+test('Rezultatų suvedimas: taškai kiekvienam žaidėjui rodomi iš karto, jau pasirinkti žaidėjai kitoms komandoms užblokuoti', async () => {
+  const { ctl, id } = await setup();
+  ctl.selectTournament(E1);
+  ctl.addTeam();
+  ctl.addTeam();
+  const [a, b] = ctl.state.entries;
+  ctl.updateTeam(a.key, { player1: id('A'), player2: id('B'), position: '1' });
+  ctl.updateTeam(b.key, { position: '13' });
+  let live = ctl.livePoints();
+  assert.equal(live.scored, true);
+  assert.equal(live.byKey.get(a.key), 50, 'ELITE 1 vieta – 50 taškų kiekvienam');
+  assert.equal(live.byKey.get(b.key), 6, 'ELITE 13 vieta – 6 taškai');
+  ctl.updateTeam(b.key, { position: '' });
+  assert.equal(ctl.livePoints().byKey.has(b.key), false, 'be vietos taškų nerodoma');
+
+  // Kitos komandos pasirinkimuose A ir B nebeleidžiami, savos komandos pasirinkimai – leidžiami
+  assert.deepEqual([...ctl.usedElsewhere(b.key)].sort(), [id('A'), id('B')].sort());
+  assert.deepEqual([...ctl.usedElsewhere(a.key)], []);
+
+  // Tas pats žaidėjas dviejose komandose vis tiek atmetamas peržiūroje (serveris tikrina irgi)
+  ctl.updateTeam(b.key, { player1: id('A'), player2: id('C'), position: '2' });
+  const preview = ctl.preview();
+  assert.equal(preview.validation.valid, false);
+
+  // Finalas be taškų lentelės
+  ctl.selectTournament('2026-2027-final');
+  ctl.addTeam();
+  ctl.updateTeam(ctl.state.entries[0].key, { position: '1' });
+  assert.equal(ctl.livePoints().scored, false, 'BEACH LEAGUE FINAL taškų neskiria');
 });

@@ -13,7 +13,7 @@ const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const demoRequested = isLocal && new URLSearchParams(location.search).has('demo');
 
 const state = {
-  status: 'loading', error: '', data: null, demo: false,
+  status: 'loading', error: '', data: null, demo: false, configured: true,
   seasonId: null, tab: 'bendras', tournamentId: null,
   query: '', sort: 'points', gender: '', tournamentFilter: 'all',
   expanded: new Set(), rankings: null, rankingsFor: null, playersById: new Map(),
@@ -38,6 +38,7 @@ async function load() {
     } else {
       console.info('[ELITE reitingai] Duomenų bazė nesukonfigūruota (ranking/runtime-config.js) – rodomas tik kalendorius.');
       raw = { seasons: [], tournaments: [], players: [], participations: [] };
+      state.configured = false;
     }
     state.data = withCalendar(raw);
     state.generatedAt = raw.generatedAt || null;
@@ -101,8 +102,7 @@ function render() {
     ${R.renderRules(seasonScoringVersion())}
     <div id="alltime"></div>`;
   renderPanel();
-  const all = computeAllTime(state.data);
-  document.getElementById('alltime').innerHTML = R.renderAllTime(all);
+  if (state.configured) document.getElementById('alltime').innerHTML = R.renderAllTime(computeAllTime(state.data));
 }
 
 function seasonScoringVersion() {
@@ -115,6 +115,10 @@ function renderPanel() {
   if (!panel) return;
   if (state.tab === 'turnyrai') { renderTournaments(panel); return; }
 
+  if (!state.configured) {
+    panel.innerHTML = `<div class="card" id="unconfigured">${R.renderEmpty(...R.UNCONFIGURED)}</div>`;
+    return;
+  }
   const r = rankings();
   const isOverall = state.tab === 'bendras';
   const rows = isOverall ? r.overall : r.categories[state.tab];

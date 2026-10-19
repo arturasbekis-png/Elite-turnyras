@@ -82,7 +82,7 @@ test('L: anoniminis lankytojas neturi tiesioginės prieigos prie lentelių', { s
     assert.equal(r.ok, false, `anon galėjo skaityti ${table}`);
     assert.match(r.err, /permission denied/i);
   }
-  assert.equal(asAnon(`insert into public.players (full_name) values ('Įsilaužėlis');`).ok, false);
+  assert.equal(asAnon(`insert into public.players (first_name, last_name) values ('Įsilaužėlis', 'Anonimas');`).ok, false);
 });
 
 test('L: anoniminis lankytojas negali kviesti administratoriaus funkcijų', { skip }, () => {
@@ -115,7 +115,7 @@ test('L: prisijungęs, bet NE administratorius – negali nieko skaityti ar keis
     assert.equal(r.ok, false, sql);
     assert.match(r.err, /not_authorized/, sql);
   }
-  const insert = asUser(`insert into public.players (full_name) values ('Neteisėtas');`);
+  const insert = asUser(`insert into public.players (first_name, last_name) values ('Neteisėtas', 'Naudotojas');`);
   assert.equal(insert.ok, false);
   assert.match(insert.err, /row-level security/i);
 });
@@ -161,16 +161,39 @@ test('Pradinė būsena: viešai matomas kalendorius, bet nėra nei žaidėjų, n
 
 test('Administratorius kuria žaidėjus; vardo pataisymas nekuria dublikato', { skip }, () => {
   const names = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'Dup'];
-  const r = asAdmin(`insert into public.players (full_name) values ${names.map((n) => `('Testinis ${n}')`).join(', ')};`);
+  const r = asAdmin(`insert into public.players (first_name, last_name) values ${names.map((n) => `('Testinis', '${n}')`).join(', ')};`);
   assert.ok(r.ok, r.err);
   const list = asAdmin(`select full_name || '=' || id from public.players order by full_name;`);
   list.out.split('\n').forEach((line) => { const [name, id] = line.split('='); ids[name.replace('Testinis ', '')] = id; });
   assert.equal(Object.keys(ids).length, 9);
-  const rename = asAdmin(`update public.players set full_name = 'Testinis Dup (pataisyta)' where id = '${ids.Dup}'; select count(*) from public.players;`);
+  const rename = asAdmin(`update public.players set last_name = 'Dup (pataisyta)' where id = '${ids.Dup}'; select count(*) from public.players;`);
   assert.ok(rename.ok, rename.err);
   assert.equal(rename.out, '9');
+  assert.equal(asOwner(`select full_name from public.players where id = '${ids.Dup}';`).out, 'Testinis Dup (pataisyta)', 'ID tas pats, pilnas vardas perskaičiuotas');
   // merged_into tiesiogiai keisti negalima (tik per sujungimo funkciją)
   assert.equal(asAdmin(`update public.players set merged_into = '${ids.A}' where id = '${ids.Dup}';`).ok, false);
+});
+
+test('Vardas ir pavardė: serveris apskaičiuoja full_name, atmeta tuščius, neleidžia rašyti full_name tiesiogiai', { skip }, () => {
+  const ok = asAdmin(`insert into public.players (first_name, last_name) values ('  Žygimantas ', 'Šimkus  ') returning first_name || '|' || last_name || '|' || full_name;`);
+  assert.ok(ok.ok, ok.err);
+  assert.equal(ok.out.split('\n')[0], 'Žygimantas|Šimkus|Žygimantas Šimkus', 'tarpai sutvarkyti, lietuviškos raidės išsaugotos');
+  const blankLast = asAdmin(`insert into public.players (first_name, last_name) values ('Vardas', '   ');`);
+  assert.equal(blankLast.ok, false);
+  assert.match(blankLast.err, /invalid_name/);
+  assert.equal(asAdmin(`insert into public.players (first_name, last_name) values ('', 'Pavardė');`).ok, false, 'tuščias vardas');
+  assert.equal(asAdmin(`insert into public.players (gender) values ('M');`).ok, false, 'be vardo negalima');
+  const direct = asAdmin(`insert into public.players (full_name) values ('Tiesioginis Vardas');`);
+  assert.equal(direct.ok, false, 'full_name tiesiogiai rašyti negalima');
+  assert.match(direct.err, /permission denied/i);
+  assert.equal(asAdmin(`update public.players set full_name = 'Apgaulė' where first_name = 'Žygimantas';`).ok, false);
+  // Pataisius vardą ID nesikeičia
+  const before = asOwner(`select id from public.players where last_name = 'Šimkus';`).out;
+  const upd = asAdmin(`update public.players set first_name = 'Žygis' where last_name = 'Šimkus';`);
+  assert.ok(upd.ok, upd.err);
+  assert.equal(asOwner(`select id::text || '|' || full_name from public.players where last_name = 'Šimkus';`).out, `${before}|Žygis Šimkus`);
+  // Išvalome, kad vėlesni testai matytų tik savo žaidėjus
+  assert.ok(asOwner(`delete from public.players where last_name = 'Šimkus';`).ok);
 });
 
 // ───────── TEST F / G — juodraštis ir patvirtinimas ─────────

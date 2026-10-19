@@ -11,21 +11,26 @@ test('Administravimo puslapis (demo): prisijungimas nereikalingas, visos skiltys
   const html = () => app.innerHTML;
 
   assert.ok(html().includes('DEMONSTRACINIS REŽIMAS'), 'demo aiškiai pažymėtas');
-  for (const label of ['Rezultatai', 'Žaidėjai', 'Sezonai ir turnyrai', 'Auditas', 'Eksportas']) assert.ok(html().includes(label), label);
+  for (const label of ['ŽAIDĖJAI', 'REZULTATŲ SUVEDIMAS', 'Sezonai ir turnyrai', 'Auditas', 'Eksportas']) assert.ok(html().includes(label), label);
+
+  // Numatytoji skiltis – ŽAIDĖJAI; rezultatų skiltis atidaroma atskirai
+  assert.ok(html().includes('PRIDĖTI ŽAIDĖJĄ') && html().includes('Ieškoti žaidėjo'));
+  app.handlers.click(act('tab', { tab: 'results' }));
 
   // Paskelbtas turnyras: rodomas pataisymo režimas
   app.handlers.change(adminChange({ sel: 'tournament' }, '2026-2027-elite-1'));
   assert.ok(html().includes('Rezultatai paskelbti (versija 1)'));
   assert.ok(html().includes('Išsaugoti pataisymą'));
   assert.ok(html().includes('Pataisymo priežastis'));
-  assert.ok(!html().includes('Patvirtinti ir paskelbti'), 'paskelbto turnyro negalima skelbti iš naujo');
+  assert.ok(!html().includes('PASKELBTI OFICIALIUS REZULTATUS'), 'paskelbto turnyro negalima skelbti iš naujo');
   app.handlers.click(act('preview'));
   assert.ok(html().includes('Validacija sėkminga'));
   assert.ok(html().includes('Taškų peržiūra'));
+  assert.ok(/<th>Vieta<\/th><th>Žaidėjas 1<\/th><th>Žaidėjas 2<\/th><th>Taškai kiekvienam<\/th>/.test(html()), 'lentelės stulpeliai pagal specifikaciją');
 
   // Juodraščio turnyras (FUTURE #1 demo duomenyse): pridedame dvi komandas ir skelbiame
   app.handlers.change(adminChange({ sel: 'tournament' }, '2026-2027-future-1'));
-  assert.ok(html().includes('Patvirtinti ir paskelbti'));
+  assert.ok(html().includes('PASKELBTI OFICIALIUS REZULTATUS'));
   app.handlers.click(act('add-team'));
   app.handlers.click(act('add-team'));
   const keys = [...html().matchAll(/data-entry="(row-\d+)" data-field="position"/g)].map((m) => m[1]);
@@ -51,7 +56,7 @@ test('Administravimo puslapis (demo): prisijungimas nereikalingas, visos skiltys
   await app.handlers.click(act('finalize'));
   await tick();
   assert.ok(!html().includes('Rezultatai paskelbti (versija 1)'), 'neteisingi rezultatai nebuvo paskelbti');
-  assert.ok(html().includes('Patvirtinti ir paskelbti'), 'turnyras vis dar nepaskelbtas');
+  assert.ok(html().includes('PASKELBTI OFICIALIUS REZULTATUS'), 'turnyras vis dar nepaskelbtas');
 
   // Pataisome ir skelbiame
   app.handlers.change(adminChange({ entry: keys[1], field: 'player1' }, p3));
@@ -62,16 +67,32 @@ test('Administravimo puslapis (demo): prisijungimas nereikalingas, visos skiltys
 
   // Kitos skiltys atsiveria be klaidų
   app.handlers.click(act('tab', { tab: 'players' }));
-  assert.ok(html().includes('Naujas žaidėjas') && html().includes('Sujungti dublikatus') && html().includes('Demo Alfa Žaidėjas'));
-  dom.el('new-name').value = 'Naujas Demo Testas';
+  assert.ok(html().includes('ŽAIDĖJAI') && html().includes('Sujungti dublikatus') && html().includes('Demo Alfa Žaidėjas'));
+  assert.ok(html().includes('demo-p1'), 'sąraše rodomas žaidėjo ID');
+  dom.el('new-first').value = 'Naujas';
+  dom.el('new-last').value = 'Testas';
   await app.handlers.submit(submit('player'));
   await tick(50);
-  assert.ok(html().includes('Naujas Demo Testas'));
-  // dublikato apsauga
-  dom.el('new-name').value = 'naujas demo testas';
+  assert.ok(html().includes('Naujas Testas'));
+  assert.ok(html().includes('Žaidėjas „Naujas Testas“ išsaugotas'), 'aiškus sėkmės pranešimas');
+  // dublikato apsauga (didžiosios raidės / tvarka): įspėjimas, įrašas nekuriamas
+  dom.el('new-first').value = 'TESTAS';
+  dom.el('new-last').value = 'naujas';
   await app.handlers.submit(submit('player'));
   await tick(50);
-  assert.equal((html().match(/Naujas Demo Testas/g) || []).length >= 1, true);
+  assert.ok(html().includes('Galimas dublikatas'));
+  assert.equal((html().match(/<strong>Naujas Testas<\/strong>/g) || []).length, 1, 'dublikatas nesukurtas');
+  // sąmoningas patvirtinimas leidžia atskirą įrašą
+  await app.handlers.click(act('force-create'));
+  await tick(50);
+  assert.equal((html().match(/<strong>TESTAS naujas<\/strong>/g) || []).length, 1, 'patvirtintas atskiras įrašas');
+  // trūkstama pavardė
+  dom.el('new-first').value = 'Vienas';
+  dom.el('new-last').value = '  ';
+  await app.handlers.submit(submit('player'));
+  await tick(50);
+  assert.ok(html().includes('Įveskite ir vardą, ir pavardę'));
+  assert.ok(html().includes('value="Vienas"'), 'neteisingai užpildyta forma neišvaloma');
 
   app.handlers.click(act('tab', { tab: 'seasons' }));
   assert.ok(html().includes('Sezonai') && html().includes('2026-2027') && html().includes('Naujas turnyras'));

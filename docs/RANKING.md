@@ -68,6 +68,9 @@ so one player cannot be in two teams of a tournament.
 
 ## Deployment / setup (required once – persistence needs a backend)
 
+> A click-by-click guide in Lithuanian for a non-programmer is in **[`docs/SUPABASE-DIEGIMAS.md`](SUPABASE-DIEGIMAS.md)**;
+> `supabase/make-admin.sql` is the ready-made admin-authorisation script (edit only the e-mail).
+
 GitHub Pages is static, so shared persistence and admin login need a backend. This module uses
 **Supabase** (free plan; no paid dependency is introduced – check Supabase's current free-plan terms, e.g. inactive
 free projects can be paused). Nothing below has been done for you: it needs your Supabase account.
@@ -76,11 +79,8 @@ free projects can be paused). Nothing below has been done for you: it needs your
 2. SQL Editor → run `supabase/schema.sql`, then `supabase/seed.sql` (both are safe to re-run).
 3. Authentication → add your admin user (email + password). Then **turn off public sign-ups**
    (Authentication → Sign In / Providers → disable "Allow new users to sign up"; menu wording may differ slightly by Supabase version).
-4. Make that user an admin (SQL Editor):
-   ```sql
-   insert into public.admins (user_id, note)
-   select id, 'Owner' from auth.users where email = 'YOUR_ADMIN_EMAIL';
-   ```
+4. Make that user an admin: run `supabase/make-admin.sql` in the SQL Editor after replacing the placeholder e-mail
+   (it inserts into `public.admins` and shows the result).
 5. Project Settings → API: copy the **Project URL** and the **anon / publishable** key into
    `ranking/runtime-config.js`. The anon key is meant to be public; the database rules protect the data.
    **Never** put the `service_role` key (or any password) in the repository — `npm test` fails if one is detected.
@@ -91,8 +91,8 @@ never shows invented data.
 
 ## Admin workflow (`reitingai-admin.html`)
 
-1. **Žaidėjai** – create players (duplicate-name warning), fix names, activate/deactivate, merge duplicates.
-2. **Rezultatai** – choose season and an existing calendar tournament, add teams (2 players each + final place).
+1. **ŽAIDĖJAI** – enter *Vardas* and *Pavardė* separately (both required; the database computes `full_name`), duplicate warning (case-, Lithuanian-diacritic- and word-order-insensitive; a deliberate separate record needs an explicit confirmation), search by name/ID, edit names (ID and history preserved), activate/deactivate, merge duplicates.
+2. **REZULTATŲ SUVEDIMAS** – choose season and an existing calendar tournament, add teams (two existing players + final place). The table `Vieta | Žaidėjas 1 | Žaidėjas 2 | Taškai kiekvienam` shows each player's points instantly; players already used in another team of the tournament are disabled.
 3. **Peržiūrėti taškus** – validation and points preview per team/player. **Išsaugoti juodraštį** keeps it private.
 4. **Patvirtinti ir paskelbti** – validates (client and server), publishes once. A second publish is rejected.
 5. **Pataisymas** – on a published tournament edit the rows, give a reason (required), save. Rankings recalculate
@@ -119,6 +119,12 @@ integer positions 1..N; no duplicate positions unless shared places are enabled 
 npm test                       # all tests; DB tests are skipped unless a PostgreSQL is configured
 npm run check                  # deployment + calendar-sync checks only
 ```
+
+Browser end-to-end tests (`tests/e2e-browser.test.mjs`, real Chromium via Playwright) run the full admin and public flow
+against real PostgreSQL through `tests/support/local-supabase.mjs`. That helper is a **test double** for PostgREST/GoTrue
+(HTTP contract, JWT check, role switching, RLS), not Supabase itself. Playwright is not a project dependency – it is
+looked up globally or via `ELITE_TEST_PLAYWRIGHT=/path/to/playwright`; without it (or without PostgreSQL) these tests
+are skipped. `ELITE_TEST_SCREENSHOTS=/dir` saves screenshots.
 
 DB tests (RLS, privileges, finalize-once, corrections/rollback, merges, tie rules, persistence across a server restart)
 run against a real PostgreSQL when configured:

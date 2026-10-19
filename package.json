@@ -4,7 +4,7 @@
   "type": "module",
   "description": "ELITE paplūdimio tinklinio turnyrų svetainė (statinė, GitHub Pages) su reitingų moduliu.",
   "scripts": {
-    "test": "node --test \"tests/*.test.mjs\"",
+    "test": "node --test --test-concurrency=1 \"tests/*.test.mjs\"",
     "check": "node --test tests/deploy.test.mjs tests/calendar-sync.test.mjs",
     "seed": "node scripts/gen-seed.mjs > supabase/seed.sql"
   },

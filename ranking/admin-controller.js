@@ -3,10 +3,11 @@
 // SVARBU: čia daroma tik patogi validacija naudotojui. Galutinį sprendimą visada priima serveris
 // (supabase/schema.sql funkcijos), todėl apeiti taisyklių per naršyklę negalima.
 
-import { validateResults, previewPoints, computeRankings, tournamentView, scoringTableFor } from './engine.js';
+import { validateResults, previewPoints, computeRankings, tournamentView, scoringTableFor, pointsForPosition } from './engine.js';
 import { overallCsv, categoryCsv, tournamentCsv } from './csv.js';
 import { tournamentId as makeTournamentId } from './events.js';
 import { fold, pickDefaultSeason } from './view.js';
+import { buildName, namesAlike } from './names.js';
 import { messageFor } from './api.js';
 import { OFFICIAL_STATUS } from './config.js';
 
@@ -24,7 +25,7 @@ export function createAdminController(backend, { onChange = () => {} } = {}) {
     ready: false, busy: false, notice: null,
     dataset: null, seasonId: null, tournamentId: null,
     entries: [], reason: '', preview: null, dirty: false,
-    audit: [],
+    audit: [], pendingDuplicate: null,
   };
   const emit = () => onChange(state);
   const setNotice = (type, text, details = []) => { state.notice = { type, text, details }; };
@@ -93,10 +94,40 @@ export function createAdminController(backend, { onChange = () => {} } = {}) {
     return state.preview;
   }
 
-  const findSimilarPlayers = (fullName) => {
-    const key = fold(fullName).replace(/\s+/g, ' ');
-    return activePlayers().filter((p) => fold(p.fullName).replace(/\s+/g, ' ') === key);
+  /** Panašūs esami žaidėjai (neatsižvelgiant į didžiąsias raides, lietuviškas žymes, vardo/pavardės tvarką). */
+  const findSimilarPlayers = (fullName) => activePlayers().filter((p) => namesAlike(p.fullName, fullName));
+
+  /** Paieška pagal vardą (be diakritikų ir didžiųjų raidžių) arba ID fragmentą. */
+  const searchPlayers = (query, { includeMerged = false } = {}) => {
+    const words = fold(query).split(/\s+/).filter(Boolean);
+    return state.dataset.players
+      .filter((p) => includeMerged || !p.mergedInto)
+      .filter((p) => {
+        const name = fold(p.fullName);
+        const id = String(p.id).toLowerCase();
+        return words.every((w) => name.includes(w) || id.startsWith(w));
+      })
+      .sort((a, b) => a.fullName.localeCompare(b.fullName, 'lt'));
   };
+
+  /** Taškai kiekvienam žaidėjui pagal komandos vietą (tas pats variklis kaip viešame reitinge). */
+  function livePoints() {
+    const t = tournament();
+    const result = { scored: false, byKey: new Map() };
+    if (!t) return result;
+    const season = state.dataset.seasons.find((s) => s.id === t.seasonId);
+    const bands = scoringTableFor(t.type, t.scoringVersion || (season && season.scoringVersion));
+    if (!bands) return result;
+    result.scored = true;
+    state.entries.forEach((e) => {
+      const position = parsePosition(e.position);
+      if (Number.isInteger(position) && position >= 1) result.byKey.set(e.key, pointsForPosition(bands, position));
+    });
+    return result;
+  }
+
+  /** Žaidėjai, jau priskirti kitoms komandoms šiame turnyre (formoje jų pasirinkti nebegalima). */
+  const usedElsewhere = (key) => new Set(state.entries.filter((e) => e.key !== key).flatMap((e) => e.playerIds).filter(Boolean));
 
   return {
     state,
@@ -181,20 +212,43 @@ export function createAdminController(backend, { onChange = () => {} } = {}) {
     // ── Žaidėjai ──
     /** Prieš kuriant naują žaidėją tikrinami panašūs vardai (apsauga nuo dublikatų). */
     findSimilarPlayers,
+    searchPlayers,
+    livePoints,
+    usedElsewhere,
+
+    /**
+     * Prideda žaidėją. Vardas ir pavardė privalomi. Jei panašus žaidėjas jau yra, nekuriama –
+     * `state.pendingDuplicate` užpildomas, o administratorius sąmoningai patvirtina per `force`.
+     */
     createPlayer: (input, { force = false } = {}) => run(async () => {
-      const similar = input.fullName ? findSimilarPlayers(input.fullName) : [];
-      if (similar.length && !force) {
-        setNotice('info', `Žaidėjas „${similar[0].fullName}“ jau yra. Jei tai tas pats žmogus, nekurkite naujo įrašo.`);
+      state.pendingDuplicate = null;
+      const name = buildName(input.firstName, input.lastName);
+      if (!name) {
+        setNotice('error', 'Įveskite ir vardą, ir pavardę.');
         return false;
       }
-      await backend.createPlayer(input);
+      const similar = findSimilarPlayers(name.fullName);
+      if (similar.length && !force) {
+        state.pendingDuplicate = { input: { ...input }, name, similar: similar.map((p) => ({ id: p.id, fullName: p.fullName })) };
+        setNotice('warning', `Panašus žaidėjas jau yra: „${similar[0].fullName}“. Jei tai tas pats žmogus, naujo įrašo nekurkite.`);
+        return false;
+      }
+      const created = await backend.createPlayer({ ...input, firstName: name.firstName, lastName: name.lastName });
       await reload({ keepEntries: true });
-      setNotice('success', 'Žaidėjas sukurtas.');
+      setNotice('success', `Žaidėjas „${(created && created.fullName) || name.fullName}“ išsaugotas.`);
+      return true;
     }),
+    clearPendingDuplicate() { state.pendingDuplicate = null; state.notice = null; emit(); },
     updatePlayer: (id, patch) => run(async () => {
+      if (patch.firstName !== undefined || patch.lastName !== undefined) {
+        const name = buildName(patch.firstName, patch.lastName);
+        if (!name) { setNotice('error', 'Įveskite ir vardą, ir pavardę.'); return false; }
+        patch = { ...patch, firstName: name.firstName, lastName: name.lastName };
+      }
       await backend.updatePlayer(id, patch);
       await reload({ keepEntries: true });
       setNotice('success', 'Žaidėjo duomenys atnaujinti. Taškai ir istorija nepakito.');
+      return true;
     }),
     mergePlayers: (keepId, dropId, reason) => run(async () => {
       await backend.mergePlayers(keepId, dropId, reason);
