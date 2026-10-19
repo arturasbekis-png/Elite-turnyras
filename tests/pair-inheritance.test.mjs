@@ -7,10 +7,10 @@ import { withCalendar } from '../ranking/view.js';
 import * as R from '../ranking/render.js';
 import { build, SEASON } from './helpers.mjs';
 
-// Dabartinė v2 lentelė: ELITE 1 vieta = 100, 2 vieta = 80; CHALLENGE 1 vieta = 40.
+// Dabartinė v3 lentelė: poros balas = abiejų žaidėjų taškų suma. ELITE 1 vieta = 100, 2 vieta = 80; CHALLENGE 1 vieta = 80 (40 + 40).
 const make = (tournaments, decisions) => {
   const d = build({ tournaments });
-  d.seasons[0].scoringVersion = 'v2';
+  d.seasons[0].scoringVersion = 'v3';
   d.tournaments.forEach((t, i) => { t.name = `${t.type.toUpperCase()} #${i + 1}`; });
   if (decisions) d.inheritanceDecisions = decisions;
   return d;
@@ -67,11 +67,11 @@ test('Paveldėjimas tik toje pačioje kategorijoje: ELITE taškai neperkeliami �
   ]);
   const r = computePairRankings(d, { seasonId: SEASON }).categories;
   const ae = find(r.challenge, 'A', 'E');
-  assert.equal(ae.points, 40, 'A+E CHALLENGE turnyre: nėra ankstesnės CHALLENGE poros – ELITE A+B taškai neperduodami');
+  assert.equal(ae.points, 80, 'A+E CHALLENGE turnyre: nėra ankstesnės CHALLENGE poros – ELITE A+B taškai neperduodami');
   assert.equal(ae.inheritedPoints, 0);
   const ah = find(r.challenge, 'A', 'H');
-  assert.equal(ah.inheritedPoints, 20, '50 % nuo A+E CHALLENGE 40 (ne nuo ELITE 100)');
-  assert.equal(ah.points, 60);
+  assert.equal(ah.inheritedPoints, 40, '50 % nuo A+E CHALLENGE 80 (ne nuo ELITE 100)');
+  assert.equal(ah.points, 120);
   const bk = find(r.elite, 'B', 'K');
   assert.equal(bk.inheritedPoints, 50, 'ELITE: iš A+B (100), ne iš CHALLENGE');
   assert.equal(bk.points, 150);
@@ -164,16 +164,16 @@ test('Paveldėjimas iš to paties šaltinio dviem naujoms poroms viename turnyre
   assert.equal(find(list, 'A', 'B').points, 100);
 });
 
-test('Paveldėjimas apvalinamas iki 2 skaitmenų (CHALLENGE 15 → 7,5) ir įtakoja vietą bei lygius taškus', () => {
+test('Paveldėjimas apvalinamas iki 2 skaitmenų (CHALLENGE 30 → 15, iš poros sumos, ne iš žaidėjo taškų) ir įtakoja vietą bei lygius taškus', () => {
   const d = make([
     { id: 'c1', type: 'challenge', date: '2026-10-18', allowTies: true, teams: [[1, ['A', 'B']], [2, ['C', 'D']], [3, ['G', 'H']], [4, ['I', 'J']], [5, ['K', 'L']], [5, ['M', 'N']], [5, ['O', 'P']], [5, ['Q', 'R']]] },
     { id: 'c2', type: 'challenge', date: '2026-11-15', teams: [[1, ['K', 'S']], [2, ['A', 'B']]] },
   ]);
   const list = rows(d, 'challenge');
   const ks = find(list, 'K', 'S');
-  assert.equal(ks.inheritedPoints, 7.5);
-  assert.equal(ks.points, 47.5);
-  assert.equal(find(list, 'A', 'B').points, 72, '40 + 32');
+  assert.equal(ks.inheritedPoints, 15, '50 % nuo 30 (K ir L po 15)');
+  assert.equal(ks.points, 95, '80 už 1 vietą + 15 paveldėta');
+  assert.equal(find(list, 'A', 'B').points, 144, '80 + 64');
   assert.equal(ks.position, 2, 'paveldėti taškai skaičiuojami reitinge');
   assert.equal(list.length, 9);
 });
@@ -210,13 +210,38 @@ test('Viešas vaizdas: paveldėjimas, laukiantis patvirtinimo, ir taisyklė aiš
   const ar = computePairRankings(amb, { seasonId: SEASON });
   const ahtml = R.renderPairs({ category: 'elite', rows: ar.categories.elite, movementAvailable: true });
   assert.ok(ahtml.includes('class="chip flag"') && ahtml.includes('paveldėjimas nepatvirtintas'));
-  const notice = R.renderDataNotices({ inheritanceFlags: ar.inheritanceFlags });
-  assert.ok(notice.includes('id="incomplete-notice"') && notice.includes('Paveldėjimas netaikomas, kol organizatoriai jo nepatvirtins'));
+  const notice = R.renderInheritanceNotice(ar.inheritanceFlags);
+  assert.ok(notice.includes('id="inheritance-notice"') && notice.includes('Paveldėjimas netaikomas, kol organizatoriai jo nepatvirtins'));
   assert.ok(R.renderPairDetail(find(ar.categories.elite, 'A', 'C')).includes('Paveldėjimas nepatvirtintas'));
 
-  const rules = R.renderRules('v2');
+  const rules = R.renderRules('v3');
   for (const text of ['Partnerio keitimas (50 % paveldėjimas)', '100 % savo sukauptų taškų', 'lygiai vienas', 'Jei abu nariai nauji', 'neperkeliami į CHALLENGE', 'vieną kartą', 'paveldėjimas nepatvirtintas']) assert.ok(rules.includes(text), text);
-  assert.ok(rules.includes('(44 + 40) / 2 = 42') && rules.includes('(18 + 16 + 14 + 12) / 4 = 15'));
+  assert.ok(rules.includes('(44 + 40) / 2 = 42') && rules.includes('(36 + 32 + 28 + 24) / 4 = 30'));
+});
+
+test('v3 paveldėjimas: 50 % skaičiuojama nuo poros sumos (abiejų žaidėjų taškų), suma antrą kartą nedvigubinama', () => {
+  const d = make([
+    e('e1', '2026-10-11', [[1, ['A', 'B']], [2, ['C', 'D']]]),
+    e('e2', '2026-11-08', [[1, ['A', 'E']], [2, ['X', 'Y']]]),
+    { id: 'c1', type: 'challenge', date: '2026-10-18', teams: [[1, ['A', 'B']], [2, ['C', 'D']]] },
+    { id: 'c2', type: 'challenge', date: '2026-11-15', teams: [[1, ['A', 'E']], [2, ['X', 'Y']]] },
+  ]);
+  const res = computePairRankings(d, { seasonId: SEASON });
+  const ab = find(res.categories.elite, 'A', 'B');
+  assert.equal(ab.points, 100, 'ELITE 1 vieta: 50 + 50');
+  assert.equal(ab.results[0].playerPoints, 50);
+  const ae = find(res.categories.elite, 'A', 'E');
+  assert.equal(ae.inheritedPoints, 50, '50 % nuo 100, ne nuo 200');
+  assert.equal(ae.points, 150);
+  const cab = find(res.categories.challenge, 'A', 'B');
+  assert.equal(cab.points, 80, 'CHALLENGE 1 vieta: 40 + 40');
+  const cae = find(res.categories.challenge, 'A', 'E');
+  assert.equal(cae.inheritedPoints, 40, '50 % nuo 80, ne nuo 160');
+  assert.equal(cae.points, 120, '80 + 40');
+  // pakartotinis skaičiavimas rezultato nekeičia
+  const again = computePairRankings(d, { seasonId: SEASON });
+  assert.deepEqual(again.categories.challenge.map((r) => r.points), res.categories.challenge.map((r) => r.points));
+  assert.equal(find(again.categories.challenge, 'A', 'B').points, 80);
 });
 
 function require_fs() {

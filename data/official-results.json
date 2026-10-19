@@ -6,7 +6,7 @@
     "Žaidėjų vardai pateikti kaip gauti: dalis tik su pavardės inicialu, dalis tik vardu. Pilnos pavardės nepatvirtintos ir nekuriamos.",
     "Vienodi vardai skirtinguose turnyruose laikomi tuo pačiu žaidėju (Lea D., Danielė Š.) pagal pateiktus rezultatus; žaidėjai nejungiami vien dėl panašių vardų.",
     "CHALLENGE #1 5–8 vietų grupė nepilna: pateiktos tik 3 komandos, ketvirta komanda trūksta (groupSize: 4). Ji nekuriama.",
-    "Taškai skiriami PORAI. ELITE taškų lentelė nuo šio sezono padvigubinta (v2: 1 vieta = 100); CHALLENGE nepakito. Partnerio keitimo taisyklė: pasikeitus lygiai vienam poros nariui, nauja pora paveldi 50 % ankstesnės poros tos pačios kategorijos taškų; neaiškiais atvejais paveldėjimą reikia patvirtinti įrašu „inheritanceDecisions“."
+    "Taškai skiriami kiekvienam žaidėjui (taškų lentelė v3), o poros reitingo balas yra abiejų žaidėjų taškų suma (pvz. CHALLENGE 1 vieta: 40 + 40 = 80; ELITE 1 vieta: 50 + 50 = 100). Partnerio keitimo taisyklė: pasikeitus lygiai vienam poros nariui, nauja pora paveldi 50 % ankstesnės poros tos pačios kategorijos sukaupto balo; neaiškiais atvejais paveldėjimą reikia patvirtinti įrašu „inheritanceDecisions“."
   ],
   "tournaments": [
     {
@@ -20,7 +20,7 @@
       "status": "finalized",
       "allowTies": true,
       "revision": 1,
-      "scoringVersion": "v2"
+      "scoringVersion": "v3"
     },
     {
       "id": "2026-2027-challenge-1",
@@ -33,7 +33,7 @@
       "status": "finalized",
       "allowTies": true,
       "revision": 1,
-      "scoringVersion": "v2"
+      "scoringVersion": "v3"
     }
   ],
   "players": [

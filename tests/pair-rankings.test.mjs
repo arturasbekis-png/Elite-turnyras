@@ -19,8 +19,8 @@ test('Oficialūs rezultatai iš statinio JSON: galutinės ELITE ir CHALLENGE por
     [4, 'Milda R. / Evgenija M.', 52], [5, 'Ditė / Gabrielė', 42], [5, 'Lea D. / Danielė Š.', 42],
   ]);
   assert.deepEqual(table(r, 'challenge'), [
-    [1, 'Rusnė A. / Luknė M.', 40], [2, 'Miglė U. / Urtė G.', 32], [3, 'Saulė R. / Aurėja R.', 26], [4, 'Goda / Amelija', 21],
-    [5, 'Danielė Š. / Lea D.', 15], [5, 'Luka B. / Adrian', 15], [5, 'Nerilė / Girmantė', 15],
+    [1, 'Rusnė A. / Luknė M.', 80], [2, 'Miglė U. / Urtė G.', 64], [3, 'Saulė R. / Aurėja R.', 52], [4, 'Goda / Amelija', 42],
+    [5, 'Danielė Š. / Lea D.', 30], [5, 'Luka B. / Adrian', 30], [5, 'Nerilė / Girmantė', 30],
   ]);
   assert.equal(r.anomalies.length, 0);
   assert.deepEqual(Object.keys(r.categories).sort(), ['challenge', 'elite'], 'jokio bendro, FUTURE ar individualaus reitingo');
@@ -36,7 +36,7 @@ test('Reitingas porų, ne žaidėjų: viena eilutė porai, taškai nedubliuojami
   }
   // kategorijos taškų suma = poros × taškai (ne ×2)
   assert.equal(r.categories.elite.reduce((s, x) => s + x.points, 0), 100 + 80 + 64 + 52 + 42 + 42);
-  assert.equal(r.categories.challenge.reduce((s, x) => s + x.points, 0), 40 + 32 + 26 + 21 + 15 * 3);
+  assert.equal(r.categories.challenge.reduce((s, x) => s + x.points, 0), 80 + 64 + 52 + 42 + 30 * 3);
 });
 
 test('ELITE ir CHALLENGE niekada nesumuojami: ta pati pora turi atskirus taškus kiekvienoje lentelėje', () => {
@@ -44,7 +44,7 @@ test('ELITE ir CHALLENGE niekada nesumuojami: ta pati pora turi atskirus taškus
   const eliteLea = r.categories.elite.find((x) => x.names.includes('Lea D.'));
   const challengeLea = r.categories.challenge.find((x) => x.names.includes('Lea D.'));
   assert.equal(eliteLea.points, 42);
-  assert.equal(challengeLea.points, 15);
+  assert.equal(challengeLea.points, 30);
   assert.equal(eliteLea.pairKey, challengeLea.pairKey, 'tai ta pati pora');
   assert.ok(eliteLea.results.every((x) => x.category === 'elite'));
   assert.ok(challengeLea.results.every((x) => x.category === 'challenge'));
@@ -67,12 +67,13 @@ test('Kitas partneris = kita pora: taškai iš skirtingų partnerysčių nesujun
   assert.equal(rows.find((x) => x.pairKey === pairKeyOf(['c', 'd'])).points, 80);
 });
 
-test('Pasidalintų vietų taškai: ELITE 5–6 = 42, CHALLENGE 5–8 (3 žinomos poros) = 15 kiekvienai', () => {
+test('Pasidalintų vietų taškai: ELITE 5–6 = 42, CHALLENGE 5–8 (3 žinomos poros) = 30 poros balo (15 + 15)', () => {
   const ds = official();
   const e = tournamentView(ds, E1).teams.filter((t) => t.position === 5);
   const c = tournamentView(ds, C1).teams.filter((t) => t.position === 5);
   assert.deepEqual(e.map((t) => t.points), [42, 42]);
-  assert.deepEqual(c.map((t) => t.points), [15, 15, 15]);
+  assert.deepEqual(c.map((t) => t.points), [30, 30, 30]);
+  assert.deepEqual(c.map((t) => t.playerPoints), [15, 15, 15], 'kiekvienam žaidėjui po 15');
   assert.equal((44 + 40) / 2, 42); assert.equal((18 + 16 + 14 + 12) / 4, 15);
 });
 

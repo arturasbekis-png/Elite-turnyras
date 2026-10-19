@@ -33,7 +33,7 @@ test('Vietinis juodraštis (patvirtintas administravime) viešame puslapyje nema
   assert.ok(!app.includes('Testinis') && !list.includes('Testinis'), 'vietinių duomenų viešame puslapyje nėra');
   assert.equal((list.match(/class="rrow/g) || []).length, 6, 'tik 6 oficialios ELITE poros');
   assert.ok(!app.includes('id="local-banner"'));
-  assert.ok(app.includes('id="static-info"'));
+  assert.ok(!app.includes('id="static-info"') && !app.includes('Oficialūs paskelbti rezultatai') && !app.includes('Vietiniai administravimo juodraščiai'), 'pašalintas bendras pranešimas');
   assert.ok(requests.every((u) => u.endsWith('/data/official-results.json')));
   dom.loc.hash = '#turnyrai';
   assert.equal((dom.el('tlist').innerHTML.match(/Patvirtintas/g) || []).length, 2, 'vietinis FUTURE #1 nėra patvirtintas viešai');

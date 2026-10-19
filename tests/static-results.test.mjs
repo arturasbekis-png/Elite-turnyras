@@ -4,7 +4,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import {
-  computeRankings, tournamentView, incompleteGroups, positionCounts, validateResults,
+  computeRankings, computePairRankings, tournamentView, incompleteGroups, positionCounts, validateResults,
 } from '../ranking/engine.js';
 import { normalizeStaticResults, loadStaticResults } from '../ranking/static-results.js';
 import { withCalendar } from '../ranking/view.js';
@@ -25,8 +25,9 @@ const ELITE = [
   [4, 'Milda R.', 'Evgenija M.', 52], [5, 'Lea D.', 'Danielė Š.', 42], [5, 'Ditė', 'Gabrielė', 42],
 ];
 const CHALLENGE = [
-  [1, 'Rusnė A.', 'Luknė M.', 40], [2, 'Miglė U.', 'Urtė G.', 32], [3, 'Saulė R.', 'Aurėja R.', 26], [4, 'Goda', 'Amelija', 21],
-  [5, 'Danielė Š.', 'Lea D.', 15], [5, 'Luka B.', 'Adrian', 15], [5, 'Nerilė', 'Girmantė', 15],
+  // poros balas = abiejų žaidėjų taškų suma (40 + 40 = 80 ir t. t.)
+  [1, 'Rusnė A.', 'Luknė M.', 80], [2, 'Miglė U.', 'Urtė G.', 64], [3, 'Saulė R.', 'Aurėja R.', 52], [4, 'Goda', 'Amelija', 42],
+  [5, 'Danielė Š.', 'Lea D.', 30], [5, 'Luka B.', 'Adrian', 30], [5, 'Nerilė', 'Girmantė', 30],
 ];
 
 test('Failas galioja ir neturi įrašytų taškų (taškus skaičiuoja tik variklis)', () => {
@@ -62,38 +63,32 @@ test('Komandos ir vietos tiksliai atitinka patvirtintus rezultatus', () => {
   assert.equal(ds.players.length, 24, 'tiksliai 24 žaidėjai, jokių išgalvotų');
 });
 
-test('Taškai: ELITE 100/80/64/52/42/42, CHALLENGE 40/32/26/21/15/15/15 (kiekvienam poros nariui rodoma poros suma)', () => {
+test('Taškai: ELITE 100/80/64/52/42/42, CHALLENGE 80/64/52/42/30/30/30 (poros balas = abiejų žaidėjų suma)', () => {
   const ds = dataset();
   assert.deepEqual(tournamentView(ds, E1).teams.map((t) => t.points), ELITE.map((r) => r[3]));
   assert.deepEqual(tournamentView(ds, C1).teams.map((t) => t.points), CHALLENGE.map((r) => r[3]));
-  const r = rank(ds);
-  for (const [, a, b, pts] of ELITE) for (const n of [a, b]) assert.equal(byName(r.categories.elite, n).points, pts, `ELITE ${n}`);
-  for (const [, a, b, pts] of CHALLENGE) for (const n of [a, b]) assert.equal(byName(r.categories.challenge, n).points, pts, `CHALLENGE ${n}`);
-  assert.equal(byName(r.categories.challenge, 'Goda').points, 21);
-  assert.equal(byName(r.categories.challenge, 'Amelija').points, 21);
-  assert.equal(byName(r.categories.challenge, 'Goda').position, byName(r.categories.challenge, 'Amelija').position);
-  const goda = tournamentView(ds, C1).teams.find((t) => t.players.some((p) => p.name === 'Goda'));
+  assert.deepEqual(tournamentView(ds, C1).teams.map((t) => t.playerPoints), [40, 32, 26, 21, 15, 15, 15], 'taškai kiekvienam žaidėjui');
+  assert.deepEqual(tournamentView(ds, E1).teams.map((t) => t.playerPoints), [50, 40, 32, 26, 21, 21]);
+  const r = computePairRankings(ds, { seasonId: SEASON });
+  const pair = (rows, a, b) => rows.find((x) => x.names[0] === a && x.names[1] === b);
+  for (const [, a, b, pts] of ELITE) assert.equal(pair(r.categories.elite, a, b).points, pts, `ELITE ${a}`);
+  for (const [, a, b, pts] of CHALLENGE) assert.equal(pair(r.categories.challenge, a, b).points, pts, `CHALLENGE ${a}`);
+  const goda = pair(r.categories.challenge, 'Goda', 'Amelija');
   assert.equal(goda.position, 4, 'Goda / Amelija liko 4 vietoje');
-  assert.equal(goda.points, 21);
+  assert.equal(goda.points, 42);
   assert.equal(tournamentView(ds, C1).teams.filter((t) => t.position === 5).length, 3, 'Goda / Amelija nėra 5–8 grupėje');
-  assert.equal(r.categories.elite.length, 12);
-  assert.equal(r.categories.challenge.length, 14);
+  assert.equal(r.categories.elite.length, 6);
+  assert.equal(r.categories.challenge.length, 7);
+  assert.equal(r.inheritanceFlags.length, 0);
 });
 
-test('Senas individualus variklis (nenaudojamas viešai): Lea D. ir Danielė Š. = 42 + 15 = 57', () => {
-  const r = rank();
-  assert.equal(r.overall.length, 24);
-  assert.deepEqual(r.overall.map((x) => x.points), [100, 100, 80, 80, 64, 64, 57, 57, 52, 52, 42, 42, 40, 40, 32, 32, 26, 26, 21, 21, 15, 15, 15, 15]);
-  for (const n of ['Lea D.', 'Danielė Š.']) {
-    const row = byName(r.overall, n);
-    assert.equal(row.points, 57); assert.equal(row.categoryPoints.elite, 42); assert.equal(row.categoryPoints.challenge, 15); assert.equal(row.played.total, 2);
-  }
-  assert.equal(r.overall.reduce((s, x) => s + x.points, 0), 2 * 380 + 2 * 164, 'bendra taškų suma');
-  assert.equal(r.anomalies.length, 0);
-  // kiekvieno žaidėjo bendra suma = ELITE + CHALLENGE
-  for (const row of r.overall) assert.equal(row.points, row.categoryPoints.elite + row.categoryPoints.challenge + row.categoryPoints.future);
-  assert.equal(byName(r.overall, 'Sofija B.').position, 1);
-  assert.equal(byName(r.overall, 'Adrian').position, 21);
+test('Ta pati pora abiejuose turnyruose: ELITE 42 (21 + 21) ir CHALLENGE 30 (15 + 15) atskirai, nesumuojama', () => {
+  const r = computePairRankings(dataset(), { seasonId: SEASON });
+  const elite = r.categories.elite.find((x) => x.names.includes('Lea D.'));
+  const challenge = r.categories.challenge.find((x) => x.names.includes('Lea D.'));
+  assert.equal(elite.points, 42); assert.equal(elite.results[0].playerPoints, 21);
+  assert.equal(challenge.points, 30); assert.equal(challenge.results[0].playerPoints, 15);
+  assert.equal(elite.inheritedPoints, 0); assert.equal(challenge.inheritedPoints, 0);
 });
 
 test('Trūkstama ketvirta CHALLENGE komanda: pažymėta, nekuriama, taškai nepriklauso nuo jos įvedimo', () => {
@@ -112,9 +107,11 @@ test('Trūkstama ketvirta CHALLENGE komanda: pažymėta, nekuriama, taškai nepr
   extended.participations.push({ id: 'c1-test', tournamentId: C1, position: 5, groupSize: 4, playerIds: ['p-test-a', 'p-test-b'] });
   const ds2 = dataset(extended);
   assert.deepEqual(tournamentView(ds2, C1).incomplete, []);
-  const r1 = rank(ds); const r2 = rank(ds2);
-  for (const n of ['Luka B.', 'Adrian', 'Nerilė', 'Girmantė', 'Goda']) assert.equal(byName(r2.overall, n).points, byName(r1.overall, n).points, n);
-  assert.equal(byName(r2.overall, 'Testinis A').points, 15);
+  const r1 = computePairRankings(ds, { seasonId: SEASON }).categories.challenge;
+  const r2 = computePairRankings(ds2, { seasonId: SEASON }).categories.challenge;
+  const pts = (rows) => Object.fromEntries(rows.map((x) => [x.name, x.points]));
+  for (const [name, points] of Object.entries(pts(r1))) assert.equal(pts(r2)[name], points, name);
+  assert.equal(pts(r2)['Testinis A / Testinis B'], 30, 'ketvirta pora gauna tą patį 5–8 grupės balą');
 });
 
 test('Pasidalinta vieta: grupės dydis įskaito deklaruotą dydį; netinkamas dydis atmetamas', () => {

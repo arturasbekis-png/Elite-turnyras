@@ -1,7 +1,7 @@
 // Gryni HTML generatoriai viešam reitingų puslapiui. Visas dinamiškas tekstas pasprendžiamas per esc().
 // Nėra DOM priklausomybių, todėl funkcijas galima testuoti Node aplinkoje.
 
-import { CATEGORIES, EVENT_TYPES, STATUSES, SCORING_TABLES, DEFAULT_SCORING_VERSION, RANKED_CATEGORIES, INHERITANCE_RATE } from './config.js';
+import { CATEGORIES, EVENT_TYPES, STATUSES, SCORING_TABLES, DEFAULT_SCORING_VERSION, RANKED_CATEGORIES, INHERITANCE_RATE, PLAYERS_PER_PAIR } from './config.js';
 import { formatDate, shortName } from './view.js';
 
 export const esc = (value) => String(value ?? '')
@@ -23,13 +23,11 @@ export const EMPTY_OFFICIAL = ['Oficialių rezultatų dar nėra', 'Reitingas ats
 
 export const UNCONFIGURED = ['Reitingai dar neprijungti', 'Reitingų duomenų bazė dar nesukonfigūruota, todėl oficialių rezultatų parodyti negalime. Kalendorių (skiltis „Turnyrų rezultatai“) ir taisykles galite peržiūrėti.'];
 
-/** Pastabos apie duomenų pilnumą (statinio rezultatų failo režimas). */
-export function renderDataNotices({ incomplete = [], limitedNames = 0, inheritanceFlags = [] } = {}) {
-  const groupText = (g) => `${g.position}–${g.position + g.declared - 1} vietų grupėje žinomos ${g.known} iš ${g.declared} porų (trūksta ${g.missing})`;
-  const parts = incomplete.map((x) => `<li><strong>${esc(x.name)}:</strong> ${x.groups.map(groupText).map(esc).join('; ')}. Trūkstama pora nekuriama ir nepridedama; likusių porų taškai skaičiuojami pagal visą grupę ir nepasikeis, kai ji bus patvirtinta.</li>`);
-  inheritanceFlags.forEach((f) => parts.push(`<li><strong>${esc(f.category.toUpperCase())}: ${esc(f.names.join(' / '))}</strong> – nauja pora (${esc(f.tournamentName)}); neaišku, kuri ankstesnė pora teikia 50 % paveldėjimą (${f.candidates.map((c) => esc(`${c.names.join(' / ')}: ${c.points} tšk.`)).join('; ')}). Paveldėjimas netaikomas, kol organizatoriai jo nepatvirtins.</li>`));
-  if (limitedNames) parts.push(`<li>${esc(limitedNames)} žaidėjų nurodyti tik vardu arba vardu ir pavardės inicialu – pilni vardai nepatvirtinti. Vienodi vardai skirtinguose turnyruose laikomi tuo pačiu žaidėju.</li>`);
-  return `<div class="notice info" role="note" id="static-info"><strong>Oficialūs paskelbti rezultatai</strong> (bendras duomenų failas) – visi lankytojai mato tuos pačius duomenis. Vietiniai administravimo juodraščiai čia nerodomi.</div>${parts.length ? `<div class="notice warning" role="note" id="incomplete-notice"><strong>Duomenys nepilni.</strong><ul>${parts.join('')}</ul></div>` : ''}`;
+/** Pastaba apie neaiškų partnerio keitimo paveldėjimą (rodoma tik kai tokių atvejų yra). */
+export function renderInheritanceNotice(flags = []) {
+  if (!flags.length) return '';
+  const items = flags.map((f) => `<li><strong>${esc(f.category.toUpperCase())}: ${esc(f.names.join(' / '))}</strong> – nauja pora (${esc(f.tournamentName)}); neaišku, kuri ankstesnė pora teikia 50 % paveldėjimą (${f.candidates.map((c) => esc(`${c.names.join(' / ')}: ${c.points} tšk.`)).join('; ')}). Paveldėjimas netaikomas, kol organizatoriai jo nepatvirtins.</li>`).join('');
+  return `<div class="notice warning" role="note" id="inheritance-notice"><strong>Paveldėjimas laukia patvirtinimo.</strong><ul>${items}</ul></div>`;
 }
 
 /** Nuostatų problema: tuščia konfigūracija – paprastas pranešimas; neteisingos / privilegijuotos reikšmės – konkreti priežastis. */
@@ -54,7 +52,7 @@ function movementCell(row, available) {
   return '<span class="rmove same" data-label="Judėjimas" title="Vieta nepasikeitė">•</span>';
 }
 
-const chip = (result, withPoints = true) => `<span class="chip ${typeClass(result.type)}" title="${esc(result.tournamentName)}">${esc(shortNameFromResult(result))}${withPoints ? ` <b>${result.counted ? esc(result.points) : '–'}</b>` : ''}</span>`;
+const chip = (result, withPoints = true) => `<span class="chip ${typeClass(result.type)}" title="${esc(result.tournamentName)}: ${esc(result.playerPoints)} + ${esc(result.playerPoints)} = ${esc(result.points)}">${esc(shortNameFromResult(result))}${withPoints ? ` <b>${result.counted ? esc(result.points) : '–'}</b>` : ''}${withPoints && result.counted ? ` <small>(${esc(result.playerPoints)}+${esc(result.playerPoints)})</small>` : ''}</span>`;
 
 function shortNameFromResult(result) {
   const m = /#(\d+)/.exec(result.tournamentName || '');
@@ -72,15 +70,16 @@ export function renderPairDetail(row) {
       <td data-label="Turnyras"><span class="tag ${typeClass(r.type)}">${esc(info.emoji || '')} ${esc(r.tournamentName)}</span></td>
       <td data-label="Data">${esc(formatDate(r.date))}</td>
       <td data-label="Vieta">${esc(r.position)}</td>
-      <td data-label="Taškai porai" class="pts">${esc(r.points)}</td>
+      <td data-label="Taškai žaidėjui">${esc(r.playerPoints)}</td>
+      <td data-label="Taškai porai" class="pts">${esc(r.points)} <small>(${esc(r.playerPoints)} + ${esc(r.playerPoints)})</small></td>
     </tr>`;
   }).join('');
   const inheritedRow = inh
-    ? `<tr class="inherit-row"><td data-label="Turnyras" colspan="3">↳ Paveldėta ${esc(Math.round(inh.rate * 100))} % iš poros ${esc(inh.fromNames.join(' / '))} (jų sukaupta ${esc(inh.basis)} tšk., pasikeitus partneriui prieš ${esc(inh.tournamentName)}${inh.manual ? '; patvirtinta organizatorių' : ''}). Ankstesnė pora savo taškų išlaiko.</td><td data-label="Taškai porai" class="pts">${esc(inh.points)}</td></tr>`
+    ? `<tr class="inherit-row"><td data-label="Turnyras" colspan="4">↳ Paveldėta ${esc(Math.round(inh.rate * 100))} % iš poros ${esc(inh.fromNames.join(' / '))} (jų sukaupta ${esc(inh.basis)} tšk., pasikeitus partneriui prieš ${esc(inh.tournamentName)}${inh.manual ? '; patvirtinta organizatorių' : ''}). Ankstesnė pora savo taškų išlaiko.</td><td data-label="Taškai porai" class="pts">${esc(inh.points)}</td></tr>`
     : '';
   const flag = row.flag ? `<p class="notice warning">Paveldėjimas nepatvirtintas: ${esc(row.flag.candidates.map((c) => `${c.names.join(' / ')} (${c.points} tšk.)`).join('; ') || 'nenurodyta ankstesnė pora')}. Kol organizatoriai nepatvirtino, taškai nepaveldimi.</p>` : '';
-  return `${flag}<div class="dwrap"><table class="dtable"><thead><tr><th>Turnyras</th><th>Data</th><th>Vieta</th><th>Taškai porai</th></tr></thead><tbody>${inheritedRow}${body}</tbody>
-    <tfoot><tr><td colspan="3">Poros taškų suma (${results.length} turnyrai${inh ? ' + paveldėti' : ''})</td><td class="pts">${esc(row.points)}</td></tr></tfoot></table></div>`;
+  return `${flag}<div class="dwrap"><table class="dtable"><thead><tr><th>Turnyras</th><th>Data</th><th>Vieta</th><th>Taškai žaidėjui</th><th>Taškai porai</th></tr></thead><tbody>${inheritedRow}${body}</tbody>
+    <tfoot><tr><td colspan="4">Poros taškų suma (${results.length} turnyrai${inh ? ' + paveldėti' : ''})</td><td class="pts">${esc(row.points)}</td></tr></tfoot></table></div>`;
 }
 
 // ───────────────────────── Reitingų lentelės ─────────────────────────
@@ -180,6 +179,7 @@ export function renderTournamentDetail({ view, backHref }) {
       return `<tr class="${MEDALS[team.position] ? `medal-${team.position}` : ''}${hide}">
         <td data-label="Vieta"><span class="pos">${MEDALS[team.position] ? `<span aria-hidden="true">${MEDALS[team.position]}</span> ` : ''}${esc(team.position)}${shared ? '=' : ''}</span></td>
         <td data-label="Pora">${team.teamName ? `<div class="team">${esc(team.teamName)}</div>` : ''}${team.players.map((p) => `<div>${esc(p.name)}</div>`).join('')}</td>
+        <td data-label="Taškai žaidėjui">${view.scored ? esc(team.playerPoints) : '–'}</td>
         <td data-label="Taškai porai" class="pts">${view.scored ? esc(team.points) : '–'}</td>
       </tr>`;
     }).join('');
@@ -188,8 +188,7 @@ export function renderTournamentDetail({ view, backHref }) {
       : 'Šio renginio taškų sistema dar nenustatyta, todėl rezultatai į jokį reitingą neįskaičiuojami.';
     body = `<div class="impact">${affects}</div>
       <p class="muted">Porų: ${esc(view.teamCount)}${t.revision > 1 ? ` · Rezultatai pataisyti (versija ${esc(t.revision)})` : ''}</p>
-      ${(view.incomplete || []).map((g) => `<div class="notice warning" data-incomplete="${esc(g.position)}">Nepilni duomenys: ${esc(g.position)}–${esc(g.position + g.declared - 1)} vietų grupėje žinomos ${esc(g.known)} iš ${esc(g.declared)} porų (trūksta ${esc(g.missing)}). Trūkstama pora nekuriama; taškai (po ${esc((view.teams.find((x) => x.position === g.position) || {}).points)} porai) skaičiuojami pagal visą grupę.</div>`).join('')}
-      <div class="ttable-wrap"><table class="ttable"><thead><tr><th>Vieta</th><th>Pora</th><th>Taškai porai</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+      <div class="ttable-wrap"><table class="ttable"><thead><tr><th>Vieta</th><th>Pora</th><th>Taškai žaidėjui</th><th>Taškai porai</th></tr></thead><tbody>${rows}</tbody></table></div>`;
   }
   return `<a class="back" href="${esc(backHref)}">← Visi turnyrai</a>
     <article class="tdetail ${typeClass(t.type)}">
@@ -208,7 +207,12 @@ function bandLabel(band) {
 export function renderPointsTable(version = DEFAULT_SCORING_VERSION, tables = SCORING_TABLES) {
   const set = tables[version].tables;
   const reference = set.elite;
-  const rows = reference.map((band, i) => `<tr><td>${esc(bandLabel(band))}</td>${RANKED_CATEGORIES.map((c) => `<td class="pts">${esc(set[c][i].points)}</td>`).join('')}</tr>`).join('');
+  const perPlayer = Boolean(tables[version].perPlayer);
+  const cell = (c, i) => {
+    const pair = set[c][i].points;
+    return perPlayer ? `<td class="pts">${esc(pair)} <small>(${esc(pair / PLAYERS_PER_PAIR)} + ${esc(pair / PLAYERS_PER_PAIR)})</small></td>` : `<td class="pts">${esc(pair)}</td>`;
+  };
+  const rows = reference.map((band, i) => `<tr><td>${esc(bandLabel(band))}</td>${RANKED_CATEGORIES.map((c) => cell(c, i)).join('')}</tr>`).join('');
   return `<table class="ptable"><thead><tr><th>Galutinė vieta</th>${RANKED_CATEGORIES.map((c) => `<th class="${typeClass(c)}">${esc(CATEGORIES[c].label)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
 }
 
@@ -218,19 +222,20 @@ export function renderRules(version = DEFAULT_SCORING_VERSION) {
   const at = (cat, pos) => bands[cat].find((b) => pos >= b.from && (b.to == null || pos <= b.to)).points;
   const avg = (cat, from, to) => { let sum = 0; for (let p = from; p <= to; p++) sum += at(cat, p); return Math.round((sum / (to - from + 1)) * 100) / 100; };
   const pct = Math.round(INHERITANCE_RATE * 100);
+  const bands_perPlayer = Boolean(SCORING_TABLES[version].perPlayer);
   return `<section class="card rules" id="taisykles" aria-labelledby="rules-title">
     <h2 id="rules-title">Reitingavimo taisyklės</h2>
     <ol class="rules-list">
-      <li><strong>Reitingas porų, ne atskirų žaidėjų.</strong> Kiekviena lentelės eilutė yra viena pora (abu žaidėjai kartu). Poros taškai skiriami vieną kartą ir nedubliuojami, atskirų žaidėjų įrašų nėra.</li>
+      <li><strong>Reitingas porų, ne atskirų žaidėjų.</strong> Kiekviena lentelės eilutė yra viena pora (abu žaidėjai kartu). Taškai skiriami kiekvienam žaidėjui pagal poros vietą turnyre, o poros reitingo balas yra abiejų žaidėjų taškų suma (pvz. CHALLENGE 1 vieta: 40 + 40 = 80). Balas skiriamas vieną kartą ir nedubliuojamas, atskirų žaidėjų įrašų reitinge nėra.</li>
       <li><strong>Kita pora.</strong> Žaidėjas su kitu partneriu sudaro kitą porą; jos taškai kaupiami atskirai (paveldėjimas – žemiau).</li>
       <li><strong>Du atskiri reitingai.</strong> ELITE porų reitingą sudaro tik ELITE turnyrų taškai, CHALLENGE porų reitingą – tik CHALLENGE turnyrų taškai. Bendro reitingo nėra, kategorijų taškai nesumuojami. Kiekvienoje kategorijoje poros taškai kaupiami per sezono turnyrus.</li>
-      <li><strong>Partnerio keitimas (${pct} % paveldėjimas).</strong> Jei pora lieka kartu, ji pasilieka 100 % savo sukauptų taškų. Jei pasikeičia <em>lygiai vienas</em> poros narys, nauja pora paveldi ${pct} % ankstesnės poros sukauptų <em>tos pačios kategorijos</em> taškų, o ankstesnė pora savo taškų išlaiko. Jei abu nariai nauji, nepaveldima nieko. ELITE taškai niekada neperkeliami į CHALLENGE ir atvirkščiai. Paveldėjimas apskaičiuojamas vieną kartą – iš taškų, sukauptų iki naujos poros pirmo turnyro; perkrovus puslapį ar perskaičiavus reitingą taškai antrą kartą nesumažinami. Jei neaišku, kuri ankstesnė pora teikia paveldėjimą (kandidatų yra keletas), taškai neperduodami, o pora pažymima „paveldėjimas nepatvirtintas“, kol organizatoriai jo nepatvirtins.</li>
+      <li><strong>Partnerio keitimas (${pct} % paveldėjimas).</strong> Jei pora lieka kartu, ji pasilieka 100 % savo sukauptų taškų. Jei pasikeičia <em>lygiai vienas</em> poros narys, nauja pora paveldi ${pct} % ankstesnės poros sukaupto <em>tos pačios kategorijos</em> balo (abiejų žaidėjų taškų sumos), o ankstesnė pora savo taškų išlaiko. Jei abu nariai nauji, nepaveldima nieko. ELITE taškai niekada neperkeliami į CHALLENGE ir atvirkščiai. Paveldėjimas apskaičiuojamas vieną kartą – iš taškų, sukauptų iki naujos poros pirmo turnyro; perkrovus puslapį ar perskaičiavus reitingą taškai antrą kartą nesumažinami. Jei neaišku, kuri ankstesnė pora teikia paveldėjimą (kandidatų yra keletas), taškai neperduodami, o pora pažymima „paveldėjimas nepatvirtintas“, kol organizatoriai jo nepatvirtins.</li>
       <li><strong>Tik patvirtinti rezultatai.</strong> Į oficialų reitingą įskaitomi tik paskelbti (patvirtinti) turnyrų rezultatai. Juodraščiai ir nepatvirtinti rezultatai taškų neduoda.</li>
-      <li><strong>Taškų lentelė</strong> (taškai porai už galutinę vietą turnyre):
+      <li><strong>Taškų lentelė</strong> (poros balas už galutinę vietą turnyre${bands_perPlayer ? '; skliausteliuose – taškai kiekvienam žaidėjui' : ''}):
         <div class="ptable-wrap">${renderPointsTable(version)}</div></li>
       <li><strong>BEACH LEAGUE FINAL.</strong> Taškų sistema šiam renginiui dar nepatvirtinta, todėl jo rezultatai į reitingus kol kas neįskaičiuojami.</li>
       <li><strong>Lygūs taškai.</strong> Vieta nustatoma pagal: 1) daugiau pirmų vietų; 2) daugiau antrų vietų; 3) daugiau sužaistų patvirtintų turnyrų. Jei vis tiek lygu, poros dalijasi ta pačia vieta (pažymėta „=“). Vardas ar pavardė vietos nenulemia.</li>
-      <li><strong>Pasidalintos vietos turnyre.</strong> Pagal nutylėjimą kiekviena pora užima atskirą vietą. Jei organizatoriai turnyrui leidžia pasidalintas vietas, pasidalinusios poros užima visas tos grupės vietas ir kiekviena gauna jų taškų vidurkį (pvz. ELITE 5–6 vietos: (${at('elite', 5)} + ${at('elite', 6)}) / 2 = ${avg('elite', 5, 6)}; CHALLENGE 5–8 vietos: (${at('challenge', 5)} + ${at('challenge', 6)} + ${at('challenge', 7)} + ${at('challenge', 8)}) / 4 = ${avg('challenge', 5, 8)}) taškų porai, o kita vieta praleidžiama (pvz. 1, 2, 2, 4). Vietoms 9–12 ir 13–16 taškai vienodi, todėl joms vietų dalytis nebūtina.</li>
+      <li><strong>Pasidalintos vietos turnyre.</strong> Pagal nutylėjimą kiekviena pora užima atskirą vietą. Jei organizatoriai turnyrui leidžia pasidalintas vietas, pasidalinusios poros užima visas tos grupės vietas ir kiekviena gauna jų poros balų vidurkį (pvz. ELITE 5–6 vietos: (${at('elite', 5)} + ${at('elite', 6)}) / 2 = ${avg('elite', 5, 6)}; CHALLENGE 5–8 vietos: (${at('challenge', 5)} + ${at('challenge', 6)} + ${at('challenge', 7)} + ${at('challenge', 8)}) / 4 = ${avg('challenge', 5, 8)}${bands_perPlayer ? `; tai ${avg('elite', 5, 6) / PLAYERS_PER_PAIR} ir ${avg('challenge', 5, 8) / PLAYERS_PER_PAIR} taškų kiekvienam žaidėjui` : ''}), o kita vieta praleidžiama (pvz. 1, 2, 2, 4). Vietoms 9–12 ir 13–16 taškai vienodi, todėl joms vietų dalytis nebūtina.</li>
       <li><strong>Pataisymai.</strong> Jei paskelbtame rezultate randama klaida, jis pataisomas ir reitingai perskaičiuojami iš to paties šaltinio – taškai niekada nesidubliuoja.</li>
       <li><strong>Judėjimas (▲/▼).</strong> Rodo vietos pokytį, palyginus su lentele prieš paskutinį tos kategorijos turnyrą. Kol kategorijoje yra tik vienas patvirtintas turnyras, judėjimas nerodomas.</li>
     </ol>

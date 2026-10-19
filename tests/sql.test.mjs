@@ -226,7 +226,7 @@ test('G: patvirtinus, taškai paskelbiami teisingai ir lygiai vieną kartą', { 
   assert.equal(data.players.length, 6);
   const t = data.tournaments.find((x) => x.id === E1);
   assert.equal(t.status, 'finalized');
-  assert.equal(t.scoringVersion, 'v2', 'išsaugota taškų lentelės versija');
+  assert.equal(t.scoringVersion, 'v3', 'išsaugota taškų lentelės versija');
 
   const { overall, categories } = rankings();
   assert.equal(pointsOf(overall, 'Testinis A'), 100);
@@ -329,7 +329,7 @@ test('Žaidėjų sujungimas: istorija ir taškai išlieka, konfliktai atmetami',
   const before = rankings();
   const totalBefore = before.overall.reduce((s, r) => s + r.points, 0);
   const dupName = 'Testinis Dup (pataisyta)';
-  assert.equal(pointsOf(before.overall, dupName), 40);
+  assert.equal(pointsOf(before.overall, dupName), 80);
   assert.equal(pointsOf(before.overall, 'Testinis G'), 52);
 
   const conflict = asAdmin(`select public.admin_merge_players('${ids.G}', '${ids.H}', 'testas');`);
@@ -340,7 +340,7 @@ test('Žaidėjų sujungimas: istorija ir taškai išlieka, konfliktai atmetami',
   const merged = asAdmin(`select public.admin_merge_players('${ids.G}', '${ids.Dup}', 'Dublikatas')::text;`);
   assert.ok(merged.ok, merged.err);
   const after = rankings();
-  assert.equal(pointsOf(after.overall, 'Testinis G'), 52 + 40, 'ELITE #2 + CHALLENGE #1');
+  assert.equal(pointsOf(after.overall, 'Testinis G'), 52 + 80, 'ELITE #2 + CHALLENGE #1');
   assert.equal(pointsOf(after.overall, dupName), undefined);
   assert.equal(after.overall.reduce((s, r) => s + r.points, 0), totalBefore, 'bendra taškų suma nepasikeitė');
   assert.ok(publicJson().players.every((p) => p.id !== ids.Dup), 'dublikatas viešai nerodomas');

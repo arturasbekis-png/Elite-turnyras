@@ -12,7 +12,7 @@
 
 import {
   RANKED_CATEGORIES, EVENT_TYPES, SCORING_TABLES, DEFAULT_SCORING_VERSION,
-  OFFICIAL_STATUS, MIN_TEAMS_TO_FINALIZE, PAIR_CATEGORIES, INHERITANCE_RATE,
+  OFFICIAL_STATUS, MIN_TEAMS_TO_FINALIZE, PAIR_CATEGORIES, INHERITANCE_RATE, PLAYERS_PER_PAIR,
 } from './config.js';
 
 const collator = new Intl.Collator('lt');
@@ -29,6 +29,9 @@ export function scoringTableFor(eventType, version = DEFAULT_SCORING_VERSION, ta
 }
 
 const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
+
+/** Vieno poros nario dalis iš poros balo (poros balas = abiejų žaidėjų taškų suma, todėl dalis = balas / 2). */
+export const playerShare = (pairPoints) => round2(pairPoints / PLAYERS_PER_PAIR);
 
 /** Taškai už galutinę komandos vietą. Kiekvienas poros žaidėjas gauna VISUS šiuos taškus. */
 export function pointsForPosition(bands, position) {
@@ -470,6 +473,7 @@ export function buildPairResults(dataset, { seasonId } = {}) {
         participationId: p.id,
         position: p.position,
         points: bands ? pointsForEntry(bands, p.position, counts) : 0,
+        playerPoints: bands ? playerShare(pointsForEntry(bands, p.position, counts)) : 0,
         counted: Boolean(bands && type && type.category),
       });
     }
@@ -665,6 +669,7 @@ export function tournamentView(dataset, tournamentId) {
       position: p.position,
       players: (p.playerIds || []).map((id) => ({ id, name: (idx.get(id) || {}).fullName || '—' })),
       points: bands && Number.isInteger(p.position) && p.position >= 1 ? pointsForEntry(bands, p.position, counts) : 0,
+      playerPoints: bands && Number.isInteger(p.position) && p.position >= 1 ? playerShare(pointsForEntry(bands, p.position, counts)) : 0,
     }))
     .sort((a, b) => a.position - b.position || collator.compare(a.players.map((x) => x.name).join(), b.players.map((x) => x.name).join()));
   return {
