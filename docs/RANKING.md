@@ -1,11 +1,11 @@
 # ELITE ranking module
 
-Individual-player ranking for the ELITE beach volleyball season, integrated into the existing static site
+Team-PAIR ranking (separate ELITE and CHALLENGE tables) for the ELITE beach volleyball season, integrated into the existing static site
 (GitHub Pages). Public pages are in Lithuanian; this document is the technical/owner guide.
 
 | Page | Purpose |
 |---|---|
-| `reitingai.html` | Public rankings: **BENDRAS REITINGAS**, **ELITE**, **CHALLENGE**, **FUTURE**, **TURNYRŲ REZULTATAI**, season selector, "Reitingavimo taisyklės" |
+| `reitingai.html` | Public rankings: **ELITE** and **CHALLENGE** pair tables, **TURNYRŲ REZULTATAI**, season selector, "Reitingavimo taisyklės" |
 | `reitingai-admin.html` | Administration (login required): players, results entry, drafts, publish, corrections, merges, audit, CSV |
 | `index.html` | Existing calendar. Only change: a **REITINGAI** navigation row and a link replacing the old "will be connected later" text. Events, dates and registration links are untouched. |
 
@@ -35,9 +35,12 @@ disagree and there is no second manually-editable copy of results.
 Defined once in `ranking/config.js` (`SCORING_TABLES.v1`) and rendered into the public "Reitingavimo taisyklės"
 section from that same config.
 
-* Points go to **each player** by the team's final position; both partners get the **full** points (no splitting).
+* The official ranking is by **PAIR**, not by player. One row = one pair (both players shown). A pair's points are awarded **once** per tournament (never doubled, no per-player rows). A player with a different partner forms a **different pair**; points of different partnerships are never merged.
+* There are **two separate tables**: ELITE (ELITE tournaments only) and CHALLENGE (CHALLENGE tournaments only). There is no combined ranking and category points are never added together. FUTURE has no public table (no tournaments yet).
+* Movement indicators (▲/▼) appear only in a category that has at least two finalized tournaments; with one tournament they are hidden.
 * Only **finalized** tournaments count. Planned / in progress / draft / awaiting confirmation → 0 points.
-* Overall = ELITE + CHALLENGE + FUTURE points of the selected season. Category tables count only their category.
+* Tie-breakers within a category: more 1st places, then more 2nd places, then more tournaments played; otherwise the same rank (shown with `=`).
+* The older per-player engine functions (`computeRankings`, `computeAllTime`) still exist for reference/tests but the public page and CSV export use `computePairRankings` only.
   Seasons are never mixed; an all-time block is shown separately ("Visų sezonų statistika", not a ranking).
 * **BEACH LEAGUE FINAL** has no scoring table (`scoringKey: null`): results can be recorded and shown, but no points
   go to any ranking. To define its scoring later, add a table to `SCORING_TABLES` and set `scoringKey`/`category`
@@ -105,7 +108,7 @@ Until step 5 is done the public page shows the calendar and the "not connected" 
 
 Admin tab **BANDYMAS** creates a separate *test season* (`bandymas`, `seasons.is_test`) with three test tournaments;
 players created with the "Bandomasis žaidėjas" box get `players.is_test` (settable only at creation). Test data can be
-published and viewed at `reitingai.html#bendras?s=bandymas` (with a warning banner) but is excluded from the default
+published and viewed at `reitingai.html#elite?s=bandymas` (with a warning banner) but is excluded from the default
 season, the season selector and the all-time statistics. The database refuses test players in official tournaments
 (`test_player_in_official`), refuses merging test with official players, locks the test season and refuses moving
 official tournaments into it. `admin_delete_test_data()` removes only `is_test` rows (stops without deleting anything if
@@ -114,7 +117,7 @@ a test player sits in an official tournament); the audit log is retained. No han
 ## Admin workflow (`reitingai-admin.html`)
 
 1. **ŽAIDĖJAI** – enter *Vardas* and *Pavardė* separately (both required; the database computes `full_name`), duplicate warning (case-, Lithuanian-diacritic- and word-order-insensitive; a deliberate separate record needs an explicit confirmation), search by name/ID, edit names (ID and history preserved), activate/deactivate, merge duplicates.
-2. **REZULTATŲ SUVEDIMAS** – choose season and an existing calendar tournament, add teams (two existing players + final place). The table `Vieta | Žaidėjas 1 | Žaidėjas 2 | Taškai kiekvienam` shows each player's points instantly; players already used in another team of the tournament are disabled.
+2. **REZULTATŲ SUVEDIMAS** – choose season and an existing calendar tournament, add teams (two existing players + final place). The table `Vieta | Žaidėjas 1 | Žaidėjas 2 | Taškai porai` shows the pair's points instantly; players already used in another team of the tournament are disabled.
 3. **Peržiūrėti taškus** – validation and points preview per team/player. **Išsaugoti juodraštį** keeps it private.
 4. **Patvirtinti ir paskelbti** – validates (client and server), publishes once. A second publish is rejected.
 5. **Pataisymas** – on a published tournament edit the rows, give a reason (required), save. Rankings recalculate
@@ -193,7 +196,7 @@ While `ranking/runtime-config.js` is **empty**:
 * **Official results are a static file**: `data/official-results.json`, committed to the repository and loaded by
   `reitingai.html` (`ranking/static-results.js`). Every visitor on every device sees the same data. The file holds
   players, tournaments (ids of the existing calendar events), teams and positions – **never points**; points are always
-  calculated by `ranking/engine.js` (shared places = average of the occupied places, both teammates get the full amount).
+  calculated by `ranking/engine.js` (shared places = average of the occupied places; the pair gets that amount once).
   The loader validates the file (unknown players/tournaments, invalid or duplicate positions, bad `groupSize` are rejected
   and the page shows an error instead of wrong results) and ignores duplicate ids, so reloading or listing a record twice
   never doubles points. `localStorage` is never used by the public page.
@@ -202,8 +205,10 @@ While `ranking/runtime-config.js` is **empty**:
   points use the declared group (CHALLENGE 5–8 = 15); the missing team is never created. Adding it later (a new
   participation with the same `position` and `groupSize`) changes nobody else's points.
 * **To publish or correct results**: edit `data/official-results.json` (add players/teams, change `status`), run
-  `npm test`, commit to `main`; GitHub Pages deploys it. `status: "finalized"` counts; anything else (draft/planned)
-  is ignored by the ranking.
+  `npm test`, **commit and push to `main`, then wait for the GitHub Pages deployment to finish**. Until then visitors
+  still see the previous version; nothing is public just because it was edited locally or entered in the local admin
+  page. `status: "finalized"` counts; anything else (draft/planned) is ignored by the ranking. After the deployment,
+  open `reitingai.html` (hard refresh) and compare it with the file.
 * `reitingai-admin.html` runs **without login** in **local mode** (`ranking/local-backend.js`, `ranking/local-store.js`):
   same rules and engine, data kept only in that browser's `localStorage`, permanent warning banner, button labelled
   "PATVIRTINTI (TIK ŠIOJE NARŠYKLĖJE)". These are private drafts: they never appear on the public page. The BANDYMAS tab

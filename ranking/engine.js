@@ -12,7 +12,7 @@
 
 import {
   RANKED_CATEGORIES, EVENT_TYPES, SCORING_TABLES, DEFAULT_SCORING_VERSION,
-  OFFICIAL_STATUS, MIN_TEAMS_TO_FINALIZE,
+  OFFICIAL_STATUS, MIN_TEAMS_TO_FINALIZE, PAIR_CATEGORIES,
 } from './config.js';
 
 const collator = new Intl.Collator('lt');
@@ -346,7 +346,7 @@ export function rankRows(rows, keyFn, nameFn) {
     }
     return 0;
   };
-  keyed.sort((a, b) => cmp(a, b) || collator.compare(nameFn(a.row), nameFn(b.row)) || String(a.row.playerId).localeCompare(String(b.row.playerId)));
+  keyed.sort((a, b) => cmp(a, b) || collator.compare(nameFn(a.row), nameFn(b.row)) || String(a.row.playerId ?? a.row.pairKey).localeCompare(String(b.row.playerId ?? b.row.pairKey)));
   let position = 0;
   const ranked = keyed.map((entry, index) => {
     if (index === 0 || cmp(keyed[index - 1], entry) !== 0) position = index + 1;
@@ -407,6 +407,128 @@ function categoryRows(aggs, players, category) {
   });
   // 1) pergalės kategorijoje 2) antros vietos kategorijoje 3) sužaisti turnyrai 4) ta pati vieta
   return rankRows(rows, (r) => [r.points, r.wins, r.seconds, r.played], (r) => r.name);
+}
+
+// ───────────────────────── Porų reitingai (oficialus viešas reitingas) ─────────────────────────
+//
+// Oficialus reitingas sudaromas PORŲ, ne atskirų žaidėjų, ir atskirai kiekvienai kategorijai (ELITE, CHALLENGE).
+// Pora = du skirtingi žaidėjai (nesvarbu, kokia tvarka surašyti). Kitas partneris = kita pora; taškai nesumuojami.
+// Taškai porai už turnyrą skiriami VIENĄ kartą (be dubliavimo), o kategorijos niekada nesumuojamos tarpusavyje.
+
+/** Stabilus poros raktas: surūšiuoti ID. */
+export const pairKeyOf = (ids) => [...ids].sort().join('|');
+
+/**
+ * Visi poros rezultatai (viena eilutė porai už turnyrą). Tik patvirtinti turnyrai.
+ * Pora (arba žaidėjas) to paties turnyro viduje antrą kartą neįskaitoma – aprašoma `anomalies`.
+ */
+export function buildPairResults(dataset, { seasonId } = {}) {
+  const resolve = makeResolver(dataset.players);
+  const results = [];
+  const anomalies = [];
+  const tournaments = (dataset.tournaments || [])
+    .filter((t) => t.status === OFFICIAL_STATUS && (seasonId == null || t.seasonId === seasonId));
+
+  for (const t of tournaments) {
+    const bands = scoringTableFor(t.type, versionFor(dataset, t));
+    const type = EVENT_TYPES[t.type];
+    const parts = (dataset.participations || [])
+      .filter((p) => p.tournamentId === t.id)
+      .slice()
+      .sort((a, b) => String(a.id).localeCompare(String(b.id)));
+    const seenPlayers = new Set();
+    const seenPairs = new Set();
+    const accepted = [];
+    for (const p of parts) {
+      if (!Number.isInteger(p.position) || p.position < 1) continue;
+      const ids = (p.playerIds || []).map(resolve);
+      if (ids.length !== 2 || ids[0] === ids[1] || ids.some((id) => !id)) {
+        anomalies.push({ code: 'invalid_pair', tournamentId: t.id, participationId: p.id });
+        continue;
+      }
+      const key = pairKeyOf(ids);
+      if (seenPairs.has(key) || ids.some((id) => seenPlayers.has(id))) {
+        anomalies.push({ code: seenPairs.has(key) ? 'duplicate_pair_in_tournament' : 'player_in_two_pairs', tournamentId: t.id, participationId: p.id });
+        continue;
+      }
+      seenPairs.add(key);
+      ids.forEach((id) => seenPlayers.add(id));
+      accepted.push({ p, ids, key });
+    }
+    // Vietų grupių dydis skaičiuojamas tik iš priimtų porų: atmestas dublikatas taškų vidurkio nekeičia.
+    const counts = positionCounts(accepted.map((x) => x.p));
+    for (const { p, ids, key } of accepted) {
+      results.push({
+        pairKey: key,
+        playerIds: ids,
+        tournamentId: t.id,
+        tournamentName: t.name,
+        seasonId: t.seasonId,
+        date: t.date,
+        type: t.type,
+        category: type ? type.category : null,
+        participationId: p.id,
+        position: p.position,
+        points: bands ? pointsForEntry(bands, p.position, counts) : 0,
+        counted: Boolean(bands && type && type.category),
+      });
+    }
+  }
+  return { results, anomalies };
+}
+
+function pairRows(results, players, category) {
+  const idx = playerIndex(players);
+  const groups = new Map();
+  for (const r of results) {
+    if (!r.counted || r.category !== category) continue;
+    if (!groups.has(r.pairKey)) groups.set(r.pairKey, []);
+    groups.get(r.pairKey).push(r);
+  }
+  const rows = [...groups.entries()].map(([pairKey, list]) => {
+    list.sort((x, y) => (x.date < y.date ? -1 : x.date > y.date ? 1 : String(x.tournamentId).localeCompare(String(y.tournamentId))));
+    const latest = list[list.length - 1];
+    const names = latest.playerIds.map((id) => (idx.get(id) || {}).fullName || '—');
+    return {
+      pairKey,
+      playerIds: latest.playerIds,
+      names,
+      name: names.join(' / '),
+      points: round2(list.reduce((s, r) => s + r.points, 0)),
+      played: list.length,
+      wins: list.filter((r) => r.position === 1).length,
+      seconds: list.filter((r) => r.position === 2).length,
+      results: list,
+    };
+  });
+  // 1) taškai 2) pergalės 3) antros vietos 4) sužaisti turnyrai 5) ta pati vieta
+  return rankRows(rows, (r) => [r.points, r.wins, r.seconds, r.played], (r) => r.name);
+}
+
+/**
+ * Porų reitingai: { categories: { elite: [...], challenge: [...] }, movementAvailable: {elite, challenge}, results, anomalies }.
+ * Eilutė: { position, tied, names, name, points, played, wins, seconds, results, movement }.
+ * Judėjimas rodomas tik kategorijoje, kurioje yra bent du patvirtinti turnyrai (yra su kuo lyginti).
+ */
+export function computePairRankings(dataset, { seasonId } = {}) {
+  const { results, anomalies } = buildPairResults(dataset, { seasonId });
+  const categories = {};
+  const movementAvailable = {};
+  for (const category of PAIR_CATEGORIES) {
+    const rows = pairRows(results, dataset.players, category);
+    const tournaments = [...new Set(results.filter((r) => r.counted && r.category === category).map((r) => r.tournamentId))]
+      .map((id) => results.find((r) => r.tournamentId === id))
+      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.tournamentId).localeCompare(String(b.tournamentId))));
+    movementAvailable[category] = tournaments.length >= 2;
+    if (movementAvailable[category]) {
+      const latest = tournaments[tournaments.length - 1].tournamentId;
+      const prev = new Map(pairRows(results.filter((r) => r.tournamentId !== latest), dataset.players, category).map((r) => [r.pairKey, r.position]));
+      categories[category] = rows.map((r) => ({ ...r, movement: prev.has(r.pairKey) ? prev.get(r.pairKey) - r.position : 'new' }));
+    } else {
+      categories[category] = rows.map((r) => ({ ...r, movement: null }));
+    }
+  }
+  return { categories, movementAvailable, results, anomalies };
 }
 
 /**
@@ -477,7 +599,7 @@ export function tournamentView(dataset, tournamentId) {
     teamCount: teams.length,
     teams,
     incomplete: official ? incompleteGroups(parts) : [],
-    affects: official && bands && type && type.category ? ['overall', type.category] : [],
+    affects: official && bands && type && type.category ? [type.category] : [],
   };
 }
 

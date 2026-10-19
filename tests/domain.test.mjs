@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { computeRankings } from '../ranking/engine.js';
 import { saveDraft, finalizeTournament, correctTournament, mergePlayers, DomainError } from '../ranking/domain.js';
-import { overallCsv, categoryCsv, tournamentCsv, toCsv } from '../ranking/csv.js';
+import { pairsCsv, tournamentCsv, toCsv } from '../ranking/csv.js';
 import { dataset, player, tournament, row, SEASON } from './helpers.mjs';
 
 function fresh() {
@@ -144,16 +144,17 @@ test('Dataset funkcijos nekeičia gauto objekto', () => {
 
 // ───────── CSV ─────────
 test('CSV: antraštės, BOM, lietuviškos raidės ir apsauga nuo formulių', () => {
-  const rows = [{ position: 1, tied: false, name: 'Žaidėjas; „Testas“', points: 50, played: { elite: 1, challenge: 0, future: 0, total: 1 }, wins: 1 },
-    { position: 2, tied: true, name: '=HYPERLINK("x")', points: 40, played: { elite: 1, challenge: 0, future: 0, total: 1 }, wins: 0 }];
-  const csv = overallCsv(rows);
-  assert.ok(csv.startsWith('﻿Vieta;Žaidėjas;Taškai;'));
+  const rows = [{ position: 1, tied: false, names: ['Žaidėjas; „Testas“', 'B'], points: 50, played: 1, wins: 1, seconds: 0 },
+    { position: 2, tied: true, names: ['=HYPERLINK("x")', 'C'], points: 40, played: 1, wins: 0, seconds: 1 }];
+  const csv = pairsCsv(rows);
+  assert.ok(csv.startsWith('﻿Vieta;Žaidėjas 1;Žaidėjas 2;Taškai;'));
   assert.ok(csv.includes('"Žaidėjas; „Testas“"'));
   assert.ok(csv.includes("'=HYPERLINK"), 'formulė neutralizuota');
   assert.ok(csv.includes('2=;'), 'lygi vieta pažymėta');
+  assert.equal(csv.trim().split('\r\n').length, 3, 'antraštė + viena eilutė porai');
   assert.equal(toCsv(['a'], [['-5'], ['-abc']]), '﻿a\r\n-5\r\n\'-abc\r\n');
-  assert.ok(categoryCsv([{ position: 1, tied: false, name: 'X', points: 40, played: 1, wins: 1, seconds: 0 }]).includes('Pergalės'));
   const t = { name: 'ELITE #1', date: '2026-10-11' };
   const tcsv = tournamentCsv(t, [{ position: 1, teamName: null, points: 50, players: [{ name: 'A' }, { name: 'B' }] }]);
-  assert.equal(tcsv.trim().split('\r\n').length, 3, 'antraštė + po eilutę kiekvienam žaidėjui');
+  assert.equal(tcsv.trim().split('\r\n').length, 2, 'antraštė + viena eilutė porai (be dubliavimo)');
+  assert.ok(tcsv.includes('A / B'));
 });

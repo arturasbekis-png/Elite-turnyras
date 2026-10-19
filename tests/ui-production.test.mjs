@@ -26,9 +26,13 @@ test('Gamyboje demonstraciniai duomenys niekada neįkeliami; viešas puslapis ro
   assert.ok(app.includes('id="incomplete-notice"') && app.includes('CHALLENGE #1') && app.includes('5–8') && app.includes('žinomos 3 iš 4'), 'nepilni duomenys aiškiai pažymėti');
   assert.ok(app.includes('žaidėjų nurodyti tik vardu arba vardu ir pavardės inicialu'));
   assert.ok(app.includes('Atnaujinta:'));
+  // Numatytasis skirtukas – ELITE porų reitingas: 6 poros (ne 12 žaidėjų), bendro reitingo nėra
   const list = dom.el('list').innerHTML;
-  assert.equal((list.match(/class="rrow/g) || []).length, 24, 'visi 24 žaidėjai bendrame reitinge');
-  for (const name of ['Sofija B.', 'Emilija P.', 'Goda', 'Amelija', 'Girmantė']) assert.ok(list.includes(name), name);
+  assert.equal((list.match(/class="rrow/g) || []).length, 6, 'ELITE: 6 poros');
+  assert.ok(list.includes('ELITE porų reitingas') && !app.includes('BENDRAS REITINGAS') && !app.includes('Visų sezonų statistika'));
+  for (const name of ['Sofija B.', 'Emilija P.', 'Milda R.', 'Evgenija M.', 'Ditė', 'Gabrielė']) assert.ok(list.includes(name), name);
+  assert.ok(!list.includes('Goda') && !list.includes('Rusnė'), 'CHALLENGE poros ELITE lentelėje nerodomos');
+  assert.ok(!/▲|▼|Judėjimas/.test(list), 'vienas turnyras kategorijoje – judėjimas paslėptas');
   assert.ok(app.includes('Reitingavimo taisyklės'));
   assert.ok(app.includes('9–12') && app.includes('13–16'));
   assert.ok(app.includes('vidurkį'), 'taisyklėse paaiškinta pasidalintų vietų taškų taisyklė');
@@ -45,7 +49,7 @@ test('Gamyboje demonstraciniai duomenys niekada neįkeliami; viešas puslapis ro
   const panel = dom.el('panel').innerHTML;
   assert.ok(panel.includes('CHALLENGE #1') && panel.includes('Goda') && panel.includes('Luka B.'));
   assert.ok(panel.includes('data-incomplete="5"') && panel.includes('trūksta 1'));
-  assert.equal((panel.match(/<td data-label="Taškai kiekvienam žaidėjui" class="pts">15</g) || []).length, 3);
+  assert.equal((panel.match(/<td data-label="Taškai porai" class="pts">15</g) || []).length, 3);
   assert.equal((panel.match(/class="pts">21</g) || []).length, 1, 'Goda / Amelija: 21');
   dom.loc.hash = '#turnyrai/2026-2027-elite-1';
   const elitePanel = dom.el('panel').innerHTML;
@@ -54,9 +58,15 @@ test('Gamyboje demonstraciniai duomenys niekada neįkeliami; viešas puslapis ro
 
   // Kategorijų skirtukai
   dom.loc.hash = '#elite';
-  assert.equal((dom.el('list').innerHTML.match(/class="rrow/g) || []).length, 12);
+  assert.equal((dom.el('list').innerHTML.match(/class="rrow/g) || []).length, 6);
   dom.loc.hash = '#challenge';
-  assert.equal((dom.el('list').innerHTML.match(/class="rrow/g) || []).length, 14);
+  const ch = dom.el('list').innerHTML;
+  assert.equal((ch.match(/class="rrow/g) || []).length, 7, 'CHALLENGE: 7 žinomos poros (ketvirtos 5–8 poros nekuriame)');
+  assert.ok(ch.includes('Goda') && ch.includes('Amelija') && ch.includes('Girmantė') && !ch.includes('Sofija B.'));
+  assert.equal((ch.match(/class="rpts"><b>15<\/b>/g) || []).length, 3);
+  assert.ok(dom.el('app').innerHTML.includes('id="incomplete-notice"'), 'trūkstama pora pažymėta');
   dom.loc.hash = '#future';
-  assert.ok(dom.el('list').innerHTML.includes('rezultatų dar nėra'), 'FUTURE dar be rezultatų, be klaidų');
+  assert.ok(dom.el('list').innerHTML.includes('ELITE porų reitingas'), 'FUTURE reitingo lentelės nėra – rodoma ELITE');
+  dom.loc.hash = '#bendras';
+  assert.ok(!dom.el('app').innerHTML.includes('BENDRAS REITINGAS'), 'bendro reitingo nėra');
 });

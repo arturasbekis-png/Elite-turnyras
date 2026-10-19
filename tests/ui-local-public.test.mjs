@@ -31,7 +31,7 @@ test('Vietinis juodraštis (patvirtintas administravime) viešame puslapyje nema
   const app = dom.el('app').innerHTML;
   const list = dom.el('list').innerHTML;
   assert.ok(!app.includes('Testinis') && !list.includes('Testinis'), 'vietinių duomenų viešame puslapyje nėra');
-  assert.equal((list.match(/class="rrow/g) || []).length, 24, 'tik 24 oficialūs žaidėjai');
+  assert.equal((list.match(/class="rrow/g) || []).length, 6, 'tik 6 oficialios ELITE poros');
   assert.ok(!app.includes('id="local-banner"'));
   assert.ok(app.includes('id="static-info"'));
   assert.ok(requests.every((u) => u.endsWith('/data/official-results.json')));

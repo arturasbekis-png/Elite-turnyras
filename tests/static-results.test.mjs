@@ -22,7 +22,7 @@ const byName = (rows, name) => rows.find((r) => r.name === name);
 
 const ELITE = [
   [1, 'Sofija B.', 'Emilija P.', 50], [2, 'Austėja M.', 'Lukrecija U.', 40], [3, 'Vakarė K.', 'Upė N.', 32],
-  [4, 'Evgenija M.', 'Milda R.', 26], [5, 'Lea D.', 'Danielė Š.', 21], [5, 'Ditė', 'Gabrielė', 21],
+  [4, 'Milda R.', 'Evgenija M.', 26], [5, 'Lea D.', 'Danielė Š.', 21], [5, 'Ditė', 'Gabrielė', 21],
 ];
 const CHALLENGE = [
   [1, 'Rusnė A.', 'Luknė M.', 40], [2, 'Miglė U.', 'Urtė G.', 32], [3, 'Saulė R.', 'Aurėja R.', 26], [4, 'Goda', 'Amelija', 21],

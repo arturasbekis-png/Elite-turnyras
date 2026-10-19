@@ -14,33 +14,34 @@ test('Puslapio logika su demonstraciniais duomenimis (tik localhost)', async () 
   // Pradinė būsena: demo reklama ir bendras reitingas
   assert.ok(app.innerHTML.includes('DEMONSTRACINIAI DUOMENYS'), 'demonstraciniai duomenys aiškiai pažymėti');
   assert.ok(app.innerHTML.includes('Reitingavimo taisyklės'), 'taisyklių skiltis matoma');
-  assert.ok(app.innerHTML.includes('BENDRAS REITINGAS') && app.innerHTML.includes('TURNYRŲ REZULTATAI'));
+  assert.ok(app.innerHTML.includes('🟣 ELITE') && app.innerHTML.includes('TURNYRŲ REZULTATAI'));
+  assert.ok(!app.innerHTML.includes('BENDRAS REITINGAS'), 'bendro reitingo nėra');
   assert.ok(list().includes('Demo Alfa Žaidėjas'));
   assert.ok(app.innerHTML.includes('2026–2027 (dabartinis)'));
 
   // Išskleidžiama žaidėjo kortelė
-  app.handlers.click(clickOn({ '[data-toggle]': { dataset: { toggle: 'demo-p1' } } }));
-  assert.ok(list().includes('Taškų suma'));
+  app.handlers.click(clickOn({ '[data-toggle]': { dataset: { toggle: 'elite:demo-p1|demo-p2' } } }));
+  assert.ok(list().includes('Poros taškų suma'));
   assert.ok(list().includes('aria-expanded="true"'));
-  app.handlers.click(clickOn({ '[data-toggle]': { dataset: { toggle: 'demo-p1' } } }));
-  assert.ok(!list().includes('Taškų suma'), 'uždaroma');
+  app.handlers.click(clickOn({ '[data-toggle]': { dataset: { toggle: 'elite:demo-p1|demo-p2' } } }));
+  assert.ok(!list().includes('Poros taškų suma'), 'uždaroma');
 
   // Paieška (be diakritikų) ir rūšiavimas
-  app.handlers.input(inputEvent('[data-control="query"]', 'beta'));
-  assert.ok(list().includes('Demo Beta') && !list().includes('Demo Alfa'));
+  app.handlers.input(inputEvent('[data-control="query"]', 'lambda'));
+  assert.ok(list().includes('Demo Lambda') && !list().includes('Demo Alfa'));
   app.handlers.input(inputEvent('[data-control="query"]', 'nėra tokio'));
-  assert.ok(list().includes('Žaidėjų nerasta'));
+  assert.ok(list().includes('Porų nerasta'));
   app.handlers.input(inputEvent('[data-control="query"]', ''));
   app.handlers.change(changeEvent('sort', 'name'));
   assert.ok(list().indexOf('Demo Alfa') < list().indexOf('Demo Zeta'));
 
   // Kategorijų skirtukai
   dom.loc.hash = '#challenge';
-  assert.ok(list().includes('CHALLENGE reitingas'));
+  assert.ok(list().includes('CHALLENGE porų reitingas'));
+  assert.ok(!list().includes('Demo Alfa Žaidėjas</span><span class="n">Demo Beta'), 'ELITE pora CHALLENGE lentelėje nerodoma');
   dom.loc.hash = '#future';
-  assert.ok(panel().includes('Oficialių rezultatų dar nėra') || list().includes('FUTURE reitingas') || list().includes('oficialių rezultatų dar nėra'),
-    'FUTURE #1 yra tik juodraštis, todėl FUTURE reitinge taškų nėra');
-  assert.ok(!list().includes('Demo Alfa'), 'juodraščio rezultatai nerodomi');
+  assert.ok(!app.innerHTML.includes('FUTURE reitingas'), 'FUTURE reitingo lentelės nėra; adresas rodo ELITE');
+  assert.ok(list().includes('ELITE porų reitingas'));
 
   // Turnyrų sąrašas ir detalės
   dom.loc.hash = '#turnyrai';
@@ -60,7 +61,7 @@ test('Puslapio logika su demonstraciniais duomenimis (tik localhost)', async () 
   assert.ok(panel().includes('Turnyras nerastas'));
 
   // Nežinomas sezonas grąžina numatytąjį
-  dom.loc.hash = '#bendras?s=1999-2000';
+  dom.loc.hash = '#elite?s=1999-2000';
   assert.ok(list().includes('Demo Alfa Žaidėjas'));
   // Sezono pakeitimas nesugriauna puslapio
   app.handlers.change(changeEvent('season', '2026-2027'));

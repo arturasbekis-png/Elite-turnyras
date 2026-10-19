@@ -157,7 +157,7 @@ test('Turnyro vaizdas: vietos, taškai ir poveikis reitingams', () => {
   const v = tournamentView(d, 'c1');
   assert.equal(v.teamCount, 2);
   assert.deepEqual(v.teams.map((t) => [t.position, t.points]), [[1, 40], [2, 32]]);
-  assert.deepEqual(v.affects, ['overall', 'challenge']);
+  assert.deepEqual(v.affects, ['challenge']);
   d.tournaments[0].status = 'draft';
   const draft = tournamentView(d, 'c1');
   assert.equal(draft.official, false);

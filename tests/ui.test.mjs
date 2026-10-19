@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { computeRankings, tournamentView } from '../ranking/engine.js';
+import { computeRankings, computePairRankings, tournamentView } from '../ranking/engine.js';
 import {
   applyView, fold, mergeTournaments, mergeSeasons, pickDefaultSeason, formatDate, parseRoute, buildRoute, withCalendar, hasGenderData, shortName,
 } from '../ranking/view.js';
@@ -65,41 +65,53 @@ test('Datos ir maršrutai', () => {
   assert.equal(formatDate('2027-04-11'), '2027 m. balandžio 11 d.');
   assert.deepEqual(parseRoute('#elite'), { tab: 'elite', tournamentId: null, seasonId: null });
   assert.deepEqual(parseRoute('#turnyrai/2026-2027-elite-1?s=2025-2026'), { tab: 'turnyrai', tournamentId: '2026-2027-elite-1', seasonId: '2025-2026' });
-  assert.equal(parseRoute('#nesamone').tab, 'bendras');
-  assert.equal(parseRoute('').tab, 'bendras');
+  assert.equal(parseRoute('#nesamone').tab, 'elite');
+  assert.equal(parseRoute('').tab, 'elite');
+  assert.equal(parseRoute('#bendras').tab, 'elite', 'bendro reitingo nebėra – senas adresas rodo ELITE');
+  assert.equal(parseRoute('#future').tab, 'elite');
   assert.equal(buildRoute({ tab: 'elite', seasonId: '2026-2027' }, '2026-2027'), '#elite');
   assert.equal(buildRoute({ tab: 'elite', seasonId: '2025-2026' }, '2026-2027'), '#elite?s=2025-2026');
   assert.equal(shortName({ type: 'challenge', number: 3 }), 'C3');
 });
 
-test('Reitingų HTML: medaliai, pozicijos, lygių indikatorius ir judėjimas', () => {
-  const d = sample();
-  const r = computeRankings(d, { seasonId: SEASON });
-  const html = R.renderOverall({ rows: r.overall, playersById: new Map(d.players.map((p) => [p.id, p])), movementAvailable: r.movementAvailable });
-  assert.ok(html.includes('🥇'));
-  assert.ok(html.includes('🥈') || html.includes('🥉'));
-  assert.ok(html.includes('class="tie"'), 'poros nariai dalijasi vieta');
-  assert.ok(html.includes('Žilvinas Žilys'));
-  assert.ok(html.includes('data-toggle="p1"'));
-  // išskleista eilutė rodo taškų suskirstymą pagal turnyrus ir partnerius
-  const open = R.renderOverall({ rows: r.overall, expanded: new Set(['p1']), playersById: new Map(d.players.map((p) => [p.id, p])) });
-  assert.ok(open.includes('ELITE #1') && open.includes('CHALLENGE #1'));
-  assert.ok(open.includes('Taškų suma'));
-  assert.ok(open.includes('aria-expanded="true"'));
+test('Porų reitingo HTML: viena eilutė porai, medaliai, vietos dalijimasis, be judėjimo kai nėra su kuo lyginti', () => {
+  const d = build({ tournaments: [
+    { id: 'e1', type: 'elite', date: '2026-10-11', teams: [[1, ['p1', 'p2']], [2, ['p3', 'p4']], [3, ['p5', 'p6']], [3, ['p7', 'p8']]], allowTies: true },
+  ] });
+  d.players.find((p) => p.id === 'p1').fullName = 'Žilvinas Žilys';
+  d.players.find((p) => p.id === 'p2').fullName = 'Ąžuolas Ūdra';
+  d.tournaments[0].name = 'ELITE #1'; d.tournaments[0].number = 1;
+  const r = computePairRankings(d, { seasonId: SEASON });
+  const html = R.renderPairs({ category: 'elite', rows: r.categories.elite, movementAvailable: r.movementAvailable.elite });
+  assert.equal((html.match(/class="rrow pair-row/g) || []).length, 4, 'viena eilutė porai (ne žaidėjui)');
+  assert.ok(html.includes('🥇') && html.includes('🥈') && html.includes('🥉'));
+  assert.ok(html.includes('class="tie"'), 'poros dalijasi vieta');
+  assert.ok(html.includes('Žilvinas Žilys') && html.includes('Ąžuolas Ūdra'));
+  assert.ok(html.includes('ELITE porų reitingas'));
+  assert.ok(!/rmove|▲|▼|Judėjimas/.test(html), 'vieno turnyro lentelėje judėjimo nėra');
+  const open = R.renderPairs({ category: 'elite', rows: r.categories.elite, expanded: new Set([`elite:${r.categories.elite[0].pairKey}`]) });
+  assert.ok(open.includes('ELITE #1') && open.includes('Poros taškų suma') && open.includes('aria-expanded="true"'));
 });
 
-test('Kategorijos HTML rodo taškus pagal turnyrus ir tik tos kategorijos žaidėjus', () => {
-  const d = sample();
-  const r = computeRankings(d, { seasonId: SEASON });
-  const html = R.renderCategory({ category: 'challenge', rows: r.categories.challenge, playersById: new Map(d.players.map((p) => [p.id, p])) });
-  assert.ok(html.includes('CHALLENGE reitingas'));
-  assert.ok(html.includes('class="chip type-challenge"'));
-  assert.ok(!html.includes('type-elite"'), 'ELITE čipų nėra');
+test('Porų reitingo HTML: judėjimas rodomas tik kai kategorijoje yra bent du turnyrai', () => {
+  const d = build({ tournaments: [
+    { id: 'e1', type: 'elite', date: '2026-10-11', teams: [[1, ['p1', 'p2']], [2, ['p3', 'p4']]] },
+    { id: 'e2', type: 'elite', date: '2026-11-08', teams: [[1, ['p3', 'p4']], [2, ['p1', 'p2']]] },
+    { id: 'c1', type: 'challenge', date: '2026-10-18', teams: [[1, ['p5', 'p6']]] },
+  ] });
+  d.tournaments.forEach((t) => { t.name = `${t.type.toUpperCase()} #1`; t.number = 1; });
+  const r = computePairRankings(d, { seasonId: SEASON });
+  assert.equal(r.movementAvailable.elite, true);
+  assert.equal(r.movementAvailable.challenge, false);
+  const elite = R.renderPairs({ category: 'elite', rows: r.categories.elite, movementAvailable: true });
+  assert.ok(elite.includes('Judėjimas') && (elite.includes('▲') || elite.includes('▼')));
+  const challenge = R.renderPairs({ category: 'challenge', rows: r.categories.challenge, movementAvailable: false });
+  assert.ok(!/▲|▼|Judėjimas/.test(challenge));
 });
 
 test('XSS apsauga: vardai ir pavadinimai išvalomi', () => {
-  const rows = [{ playerId: 'x', name: '<img src=x onerror=alert(1)>', position: 1, tied: false, points: 50, played: { elite: 1, challenge: 0, future: 0, total: 1 }, wins: 1, movement: null, results: [] }];
-  const html = R.renderOverall({ rows });
+  const rows = [{ pairKey: 'x|y', names: ['<img src=x onerror=alert(1)>', 'B'], name: '<img src=x onerror=alert(1)> / B', position: 1, tied: false, points: 50, played: 1, wins: 1, seconds: 0, movement: null, results: [] }];
+  const html = R.renderPairs({ category: 'elite', rows });
   assert.ok(!html.includes('<img'));
   assert.ok(html.includes('&lt;img'));
   assert.equal(R.esc(`"'&<>`), '&quot;&#39;&amp;&lt;&gt;');
@@ -128,7 +140,8 @@ test('Turnyro detalės: poveikis reitingams, taškai ir nepaskelbti rezultatai',
   const d = sample();
   const view = tournamentView(d, 'c1');
   const html = R.renderTournamentDetail({ view, backHref: '#turnyrai' });
-  assert.ok(html.includes('BENDRAS REITINGAS') && html.includes('CHALLENGE reitingas'));
+  assert.ok(html.includes('CHALLENGE porų reitingas') && !html.includes('BENDRAS REITINGAS'));
+  assert.ok(html.includes('Taškai porai'));
   assert.ok(html.includes('Rūta Kazlauskaitė'));
   assert.ok(html.includes('40'), 'pirmos vietos CHALLENGE taškai');
   d.tournaments.find((t) => t.id === 'c1').status = 'draft';
@@ -140,7 +153,7 @@ test('Turnyro detalės: poveikis reitingams, taškai ir nepaskelbti rezultatai',
 test('Taisyklių skiltis „Reitingavimo taisyklės“ generuojama iš config ir turi visą taškų lentelę', () => {
   const html = R.renderRules('v1');
   assert.ok(html.includes('Reitingavimo taisyklės'));
-  for (const text of ['9–12', '13–16', 'dalyvavimas', 'ta pačia vieta', 'BEACH LEAGUE FINAL', 'audito žurnale']) assert.ok(html.includes(text), text);
+  for (const text of ['9–12', '13–16', 'dalyvavimas', 'ta pačia vieta', 'BEACH LEAGUE FINAL', 'porų, ne atskirų žaidėjų', 'Bendro reitingo nėra']) assert.ok(html.includes(text), text);
   // tikrinam, kad lentelėje yra visi skaičiai iš config (be hardcode)
   const bands = SCORING_TABLES.v1.tables;
   for (const key of ['elite', 'challenge', 'future']) {
@@ -149,14 +162,11 @@ test('Taisyklių skiltis „Reitingavimo taisyklės“ generuojama iš config ir
   assert.ok(html.includes('<td class="pts">50</td>') && html.includes('<td class="pts">40</td>') && html.includes('<td class="pts">30</td>'));
 });
 
-test('Visų sezonų statistika atskirta ir paaiškinta; tuščia – nerodoma', () => {
-  assert.equal(R.renderAllTime([]), '');
-  const html = R.renderAllTime([{ position: 1, tied: false, name: 'X', points: 90, played: { total: 2 }, wins: 1, seasons: 2 }]);
-  assert.ok(html.includes('Visų sezonų statistika') && html.includes('ne sezono reitingas'));
-});
-
-test('Žaidėjo detalės: finalo rezultatas rodomas be taškų', () => {
-  const html = R.renderPlayerDetail({ results: [{ type: 'final', tournamentName: 'BEACH LEAGUE FINAL', date: '2027-04-11', position: 1, partnerIds: ['p2'], points: 0, counted: false }] }, new Map([['p2', player('p2')]]));
-  assert.ok(html.includes('BEACH LEAGUE FINAL'));
-  assert.ok(html.includes('Šio renginio taškų sistema dar nenustatyta'));
+test('Poros detalės: kiekvienas turnyras ir poros taškai', () => {
+  assert.ok(R.renderPairDetail({ results: [] }).includes('dar neturi'));
+  const html = R.renderPairDetail({ points: 71, results: [
+    { type: 'elite', tournamentName: 'ELITE #1', date: '2026-10-11', position: 1, points: 50 },
+    { type: 'elite', tournamentName: 'ELITE #2', date: '2026-11-08', position: 5, points: 21 },
+  ] });
+  assert.ok(html.includes('ELITE #1') && html.includes('ELITE #2') && html.includes('Taškai porai') && html.includes('>71<'));
 });

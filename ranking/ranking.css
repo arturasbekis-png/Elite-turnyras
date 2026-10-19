@@ -72,6 +72,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid #5d42e8;border-color:#
 .rgrid{display:grid;align-items:center;gap:8px}
 .rgrid.overall{grid-template-columns:64px minmax(0,1fr) 84px repeat(3,76px) 62px 54px 84px}
 .rgrid.cat{grid-template-columns:64px minmax(0,1fr) 84px 76px 76px}
+.rgrid.pair{grid-template-columns:64px minmax(0,1fr) 84px 76px 76px 84px}
+.rgrid.pair.nomove{grid-template-columns:64px minmax(0,1fr) 84px 76px 76px}
+.pair-names{display:flex;flex-direction:column;gap:2px}
 .rstats{display:contents}
 .rhead{font-size:11px;font-weight:900;color:#647080;text-transform:uppercase;padding:8px 12px;letter-spacing:.3px;border-bottom:2px solid #e6eaf0}
 .rhead .r{text-align:right}
@@ -144,7 +147,7 @@ input:focus,select:focus,textarea:focus{outline:2px solid #5d42e8;border-color:#
   .overlay{padding:18px 10px 30px}
   .logo{font-size:35px}.title{font-size:21px}
   .rhead{display:none}
-  .rgrid.overall,.rgrid.cat{grid-template-columns:56px minmax(0,1fr) auto;grid-template-areas:"pos name pts" "stats stats stats";row-gap:10px}
+  .rgrid.overall,.rgrid.cat,.rgrid.pair,.rgrid.pair.nomove{grid-template-columns:56px minmax(0,1fr) auto;grid-template-areas:"pos name pts" "stats stats stats";row-gap:10px}
   .rgrid .rpos{grid-area:pos}
   .rgrid .rname{grid-area:name}
   .rgrid .rpts{grid-area:pts}

@@ -219,15 +219,17 @@ test('CSV eksportas: reitingų ir turnyro (juodraštis ir paskelbtas)', async ()
   fillTeams(ctl, id, [[1, 'A', 'B'], [2, 'C', 'D']]);
   const draft = ctl.exportCsv('tournament');
   assert.equal(draft.filename, `turnyras-${E1}.csv`);
-  assert.equal(draft.content.trim().split('\r\n').length, 5, 'antraštė + 4 žaidėjai');
+  assert.equal(draft.content.trim().split('\r\n').length, 3, 'antraštė + 2 poros (po eilutę porai)');
   await ctl.finalize();
-  const overall = ctl.exportCsv('overall');
-  assert.equal(overall.filename, 'reitingas-bendras-2026-2027.csv');
-  const lines = overall.content.trim().split('\r\n');
-  assert.equal(lines.length, 5);
-  assert.ok(lines[1].startsWith('1=;Testinis A;50;') || lines[1].startsWith('1=;Testinis B;50;'), lines[1]);
-  assert.ok(ctl.exportCsv('elite').content.includes('Pergalės'));
-  assert.equal(ctl.exportCsv('future').content.trim().split('\r\n').length, 1, 'FUTURE reitingas tuščias');
+  const elite = ctl.exportCsv('elite');
+  assert.equal(elite.filename, 'reitingas-poros-elite-2026-2027.csv');
+  const lines = elite.content.trim().split('\r\n');
+  assert.equal(lines.length, 3, 'antraštė + 2 poros (ne 4 žaidėjai)');
+  assert.ok(lines[1].startsWith('1;Testinis A;Testinis B;50;'), lines[1]);
+  assert.ok(elite.content.includes('Pergalės'));
+  assert.equal(ctl.exportCsv('challenge').content.trim().split('\r\n').length, 1, 'CHALLENGE reitingas tuščias');
+  assert.equal(ctl.exportCsv('overall'), null, 'bendro reitingo eksporto nėra');
+  assert.equal(ctl.exportCsv('future'), null);
   assert.equal(ctl.exportCsv('nežinoma'), null);
 });
 

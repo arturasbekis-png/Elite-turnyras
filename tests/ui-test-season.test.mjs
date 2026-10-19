@@ -60,22 +60,21 @@ test('Viešas puslapis: bandomasis sezonas paslėptas, bet atidaromas tiesiogini
   assert.ok(!app.includes('BANDOMASIS SEZONAS'), 'bandomasis sezonas sąraše nerodomas');
   const list = dom.el('list').innerHTML;
   assert.ok(list.includes('Oficialus Vienas') && !list.includes('Bandymas Vienas'));
-  const alltime = dom.el('alltime').innerHTML;
-  assert.ok(alltime.includes('Oficialus Vienas') && !alltime.includes('Bandymas'), 'istorinėje statistikoje bandomųjų nėra');
+  assert.ok(!dom.el('app').innerHTML.includes('Bandymas'), 'bandomųjų žaidėjų numatytame rodinyje nėra');
 
   // tiesioginis adresas
-  dom.loc.hash = '#bendras?s=bandymas';
+  dom.loc.hash = '#elite?s=bandymas';
   await tick();
   app = dom.el('app').innerHTML;
   assert.ok(app.includes('id="test-banner"') && app.includes('BANDOMASIS SEZONAS'), 'aiškus perspėjimas');
   assert.ok(app.includes('(bandomasis)'));
   const testList = dom.el('list').innerHTML;
   assert.ok(testList.includes('Bandymas Vienas') && testList.includes('Bandymas Du') && !testList.includes('Oficialus Vienas'));
-  assert.equal((testList.match(/>50</g) || []).length >= 2, true, 'abu partneriai su pilnais 50 taškų');
-  assert.ok(!dom.el('alltime').innerHTML.includes('Bandymas'), 'istorinė statistika ir čia be bandomųjų');
+  assert.equal((testList.match(/class="rrow pair-row/g) || []).length, 1, 'viena pora, ne du žaidėjai');
+  assert.equal((testList.match(/class="rpts"><b>50<\/b>/g) || []).length, 1, 'poros taškai (50) rodomi vieną kartą');
 
   // grįžus į numatytą sezoną bandymo vėl nėra
-  dom.loc.hash = '#bendras';
+  dom.loc.hash = '#elite';
   await tick();
   assert.ok(!dom.el('app').innerHTML.includes('test-banner'));
 });

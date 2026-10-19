@@ -85,10 +85,11 @@ export function shortName(tournament) {
 export function parseRoute(hash) {
   const raw = String(hash || '').replace(/^#\/?/, '');
   const [pathPart, queryPart = ''] = raw.split('?');
-  const [tab = 'bendras', id = null] = pathPart.split('/');
+  const [tab = 'elite', id = null] = pathPart.split('/');
   const params = new URLSearchParams(queryPart);
-  const tabs = ['bendras', 'elite', 'challenge', 'future', 'turnyrai'];
-  return { tab: tabs.includes(tab) ? tab : 'bendras', tournamentId: id ? decodeURIComponent(id) : null, seasonId: params.get('s') };
+  // Seni adresai (#bendras, #future) nukreipiami į ELITE: bendro reitingo nebėra.
+  const tabs = ['elite', 'challenge', 'turnyrai'];
+  return { tab: tabs.includes(tab) ? tab : 'elite', tournamentId: id ? decodeURIComponent(id) : null, seasonId: params.get('s') };
 }
 
 export function buildRoute({ tab, tournamentId, seasonId }, defaultSeasonId) {
