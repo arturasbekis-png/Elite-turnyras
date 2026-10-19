@@ -187,7 +187,9 @@ export function createAdminController(backend, { onChange = () => {}, onAuthLost
       await backend.saveResults(state.tournamentId, toPayload(), 'awaiting_confirmation');
       await backend.finalize(state.tournamentId);
       await reload();
-      setNotice('success', 'Rezultatai patvirtinti ir paskelbti. Taškai įskaičiuoti į reitingus.');
+      setNotice('success', backend.local
+        ? 'Rezultatai patvirtinti TIK šioje naršyklėje. Jie NEPASKELBTI viešai – kiti lankytojai jų nemato.'
+        : 'Rezultatai patvirtinti ir paskelbti. Taškai įskaičiuoti į reitingus.');
     }),
 
     /** Paskelbtų rezultatų pataisymas – privaloma priežastis, išsaugoma audito žurnale. */

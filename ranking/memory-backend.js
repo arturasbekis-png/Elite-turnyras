@@ -11,7 +11,12 @@ const clone = (value) => JSON.parse(JSON.stringify(value));
 export function createMemoryBackend(initial, { actor = 'demo@local' } = {}) {
   let data = clone(initial);
   data.auditLog = data.auditLog || [];
+  // Identifikatorių skaitiklis tęsiamas nuo didžiausio jau esančio (svarbu, kai duomenys įkelti iš vietinės saugyklos).
   let counter = 0;
+  for (const item of [...(data.players || []), ...(data.participations || [])]) {
+    const m = /mem-(\d+)$/.exec(String(item.id || ''));
+    if (m) counter = Math.max(counter, Number(m[1]));
+  }
   const nextId = () => `mem-${++counter}`;
   const session = { email: actor };
 

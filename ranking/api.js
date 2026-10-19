@@ -26,6 +26,7 @@ export const ERROR_MESSAGES = {
   rate_limited: 'Per daug bandymų. Palaukite kelias minutes ir bandykite dar kartą.',
   server_error: 'Serveris laikinai nepasiekiamas. Bandykite dar kartą po kelių minučių.',
   session_expired: 'Prisijungimo galiojimas baigėsi. Prisijunkite iš naujo.',
+  local_storage_failed: 'Pakeitimo nepavyko išsaugoti šioje naršyklėje (saugykla pilna ar išjungta). Atsisiųskite CSV.',
   invalid_key: 'Duomenų bazė atmetė svetainės viešą raktą. Patikrinkite ranking/runtime-config.js: URL ir raktas turi būti iš to paties Supabase projekto.',
   schema_missing: 'Duomenų bazėje nerasta reikiamų funkcijų. Supabase SQL Editor paleiskite supabase/schema.sql (žr. docs/SUPABASE-DIEGIMAS.md).',
   tournament_not_found: 'Turnyras nerastas.',

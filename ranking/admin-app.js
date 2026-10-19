@@ -5,6 +5,8 @@ import { createClient } from './api.js';
 import { RUNTIME } from './runtime-config.js';
 import { createAdminController } from './admin-controller.js';
 import { createMemoryBackend } from './memory-backend.js';
+import { createLocalBackend } from './local-backend.js';
+import { getLocalStorage, clearLocalDataset } from './local-store.js';
 import { esc } from './render.js';
 import { EVENT_TYPES, STATUSES, SCORING_TABLES } from './config.js';
 import { formatDate } from './view.js';
@@ -21,6 +23,7 @@ try { storage = window.sessionStorage; } catch (_) { /* privatus režimas */ }
 const ui = {
   screen: 'loading', tab: 'players', loginError: '', editingPlayer: null, showMerged: false, playerQuery: '',
   newFirst: '', newLast: '', newGender: '', newTest: false, backend: null, client: null, ctl: null,
+  local: false, localStorage: null,
 };
 
 const TABS = [['players', 'ŽAIDĖJAI'], ['results', 'REZULTATŲ SUVEDIMAS'], ['seasons', 'Sezonai ir turnyrai'], ['test', 'BANDYMAS'], ['audit', 'Auditas'], ['export', 'Eksportas']];
@@ -44,7 +47,11 @@ async function start() {
     }
     ui.client = createClient({ url: RUNTIME.supabaseUrl, anonKey: RUNTIME.supabaseAnonKey, storage });
     ui.backend = ui.client;
-    if (!ui.client.configured()) { ui.screen = 'unconfigured'; render(); return; }
+    if (!ui.client.configured()) {
+      const problem = ui.client.configProblem();
+      if (problem && problem.status === 'missing') { await startLocal(); return; }
+      ui.screen = 'unconfigured'; render(); return; // nuostatos įrašytos, bet netinkamos – parodome priežastį
+    }
     attachController();
     const session = await ui.client.restoreSession();
     if (session && await verifyAdmin()) { ui.screen = 'app'; await ui.ctl.load(); return; }
@@ -55,6 +62,16 @@ async function start() {
     ui.loginError = err && err.message ? err.message : 'Nepavyko paleisti.';
     render();
   }
+}
+
+/** Supabase neprijungtas: administravimas veikia vietiniu režimu (duomenys TIK šioje naršyklėje, be prisijungimo). */
+async function startLocal() {
+  ui.local = true;
+  ui.localStorage = getLocalStorage();
+  ui.backend = createLocalBackend({ storage: ui.localStorage });
+  attachController();
+  ui.screen = 'app';
+  await ui.ctl.load();
 }
 
 function attachController() {
@@ -116,14 +133,21 @@ function renderApp() {
   const s = ctl.state;
   const email = ui.backend.getSession && ui.backend.getSession() ? ui.backend.getSession().email : '';
   const demoBanner = demo ? '<div class="demo-banner" role="note">⚠ DEMONSTRACINIS REŽIMAS – duomenys laikomi tik atmintyje ir dingsta perkrovus puslapį. Tai ne oficiali saugykla.</div>' : '';
-  const tabs = TABS.map(([id, label]) => `<button type="button" class="tab${ui.tab === id ? ' active' : ''}" data-act="tab" data-tab="${id}">${label}</button>`).join('');
+  const localBanner = ui.local
+    ? `<div class="demo-banner" role="note" id="local-banner">⚠ VIETINIS REŽIMAS – Supabase duomenų bazė neprijungta. Viskas, ką čia įvedate, saugoma TIK šioje naršyklėje (šiame įrenginyje) ir NĖRA viešai paskelbta: kiti lankytojai šių duomenų nemato. ${ui.localStorage ? 'Neišvalykite naršyklės duomenų, kitaip jie dings.' : '<strong>Ši naršyklė neleidžia saugoti duomenų – viskas dings uždarius ar perkrovus puslapį.</strong>'} Prisijungimo šiame režime nėra, todėl jis netinka bendram darbui.</div>`
+    : '';
+  const tabs = TABS.filter(([id]) => !(ui.local && id === 'test')).map(([id, label]) => `<button type="button" class="tab${ui.tab === id ? ' active' : ''}" data-act="tab" data-tab="${id}">${label}</button>`).join('');
   let body = '<div class="state state-loading"><div class="spinner"></div><p>Kraunama…</p></div>';
   if (s.ready) {
     body = { results: renderResults, players: renderPlayers, seasons: renderSeasons, test: renderTest, audit: renderAudit, export: renderExport }[ui.tab]();
   }
-  return `${demoBanner}
-    <div class="card toolbar"><div class="toolbar-row"><span>Prisijungta: <strong>${esc(email)}</strong></span>
-      ${demo ? '' : '<button type="button" class="btn secondary" data-act="logout" style="margin-left:auto">Atsijungti</button>'}</div></div>
+  const who = ui.local ? '<span>Vietinis režimas (be prisijungimo)</span>' : `<span>Prisijungta: <strong>${esc(email)}</strong></span>`;
+  const rightButton = ui.local
+    ? '<button type="button" class="btn secondary" data-act="clear-local" style="margin-left:auto">Išvalyti vietinius duomenis</button>'
+    : (demo ? '' : '<button type="button" class="btn secondary" data-act="logout" style="margin-left:auto">Atsijungti</button>');
+  return `${demoBanner}${localBanner}
+    <div class="card toolbar"><div class="toolbar-row">${who}
+      ${rightButton}</div></div>
     <nav class="tabs" role="tablist">${tabs}</nav>
     ${s.pendingDuplicate ? '' : noticeHtml(s.notice)}
     <div class="${s.busy ? 'busy' : ''}">${body}</div>`;
@@ -180,15 +204,17 @@ function renderResults() {
         <button type="button" class="btn secondary" data-act="preview">Peržiūrėti taškus ir patikrinti</button>
         <button type="button" class="btn secondary" data-act="save-draft"${s.busy ? ' disabled' : ''}>Išsaugoti juodraštį</button>
         <button type="button" class="btn secondary" data-act="save-awaiting"${s.busy ? ' disabled' : ''}>Pažymėti „Laukiama patvirtinimo“</button>
-        <button type="button" class="btn" data-act="finalize"${s.busy ? ' disabled' : ''}>PASKELBTI OFICIALIUS REZULTATUS</button></div>
-       <p class="muted">Juodraštis viešame reitinge nerodomas ir taškų neskiria. Taškai atsiranda tik po paskelbimo.</p>
+        <button type="button" class="btn" data-act="finalize"${s.busy ? ' disabled' : ''}>${ui.local ? 'PATVIRTINTI (TIK ŠIOJE NARŠYKLĖJE)' : 'PASKELBTI OFICIALIUS REZULTATUS'}</button></div>
+       <p class="muted">${ui.local ? 'Vietiniame režime niekas nepaskelbiama viešai. Juodraštis taškų neskiria; patvirtinti rezultatai matomi tik šioje naršyklėje.' : 'Juodraštis viešame reitinge nerodomas ir taškų neskiria. Taškai atsiranda tik po paskelbimo.'}</p>
        <div class="toolbar-row"><label class="field"><span class="lbl">Statusas</span><select data-status><option value="planned">Suplanuotas</option><option value="in_progress">Vyksta</option><option value="draft">Rezultatų juodraštis</option><option value="awaiting_confirmation">Laukiama patvirtinimo</option></select></label>
         <button type="button" class="btn secondary" data-act="set-status">Nustatyti statusą</button>
         <label class="check"><input type="checkbox" data-ties${t.allowTies ? ' checked' : ''}> Leisti pasidalintas vietas (1-2-2-4)</label></div>`;
 
   return `${picker}<div class="card">
     <div class="ttop"><div><h2 style="margin:0">${esc(type.emoji || '')} ${esc(t.name)}</h2><div class="tdate">${esc(formatDate(t.date))} · ${esc(type.label)}</div></div>${statusBadge(t.status)}</div>
-    ${finalized ? `<div class="notice info">Rezultatai paskelbti (versija ${esc(t.revision)}). Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html${testSeason ? `#bendras?s=${esc(t.seasonId)}` : ''}" target="_blank" rel="noopener">Atidaryti viešą reitingą</a></div>` : ''}
+    ${finalized ? (ui.local
+      ? `<div class="notice warning" id="local-finalized">Rezultatai patvirtinti TIK šioje naršyklėje (versija ${esc(t.revision)}) – viešai NEPASKELBTI. Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html" target="_blank" rel="noopener">Atidaryti reitingų puslapį (matoma tik šioje naršyklėje)</a></div>`
+      : `<div class="notice info">Rezultatai paskelbti (versija ${esc(t.revision)}). Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html${testSeason ? `#bendras?s=${esc(t.seasonId)}` : ''}" target="_blank" rel="noopener">Atidaryti viešą reitingą</a></div>`) : ''}
     ${testSeason ? `<div class="notice warning" id="test-season-note">BANDOMASIS turnyras: čia galite laisvai bandyti, rezultatai nėra oficialūs ir bus ištrinti skiltyje BANDYMAS. <a href="reitingai.html#bendras?s=${esc(t.seasonId)}" target="_blank" rel="noopener">Atidaryti bandomąjį viešą reitingą</a></div>` : ''}
     ${t.type === 'final' ? '<div class="notice info">BEACH LEAGUE FINAL taškų sistema nenustatyta – rezultatai bus paskelbti, bet į reitingus neįskaičiuojami.</div>' : ''}
     <h3>3. Komandos ir galutinės vietos</h3>
@@ -360,6 +386,12 @@ function resetNewPlayer() {
 
 const actions = {
   tab: (el) => { ui.tab = el.dataset.tab; render(); if (ui.tab === 'audit') ui.ctl.loadAudit(); },
+  'clear-local': async () => {
+    if (!window.confirm('Ištrinti VISUS šioje naršyklėje išsaugotus vietinius duomenis (žaidėjus, juodraščius, patvirtintus rezultatus)?\n\nNaudokite tik jei norite pradėti iš naujo. Šio veiksmo atšaukti negalima. Joks bendras ar viešas duomuo nebus paliestas.')) return;
+    clearLocalDataset(ui.localStorage);
+    ui.tab = 'players'; ui.editingPlayer = null;
+    await startLocal();
+  },
   logout: async () => { await ui.client.signOut(); ui.screen = 'login'; ui.loginError = ''; render(); },
   'add-team': () => ui.ctl.addTeam(),
   'remove-team': (el) => ui.ctl.removeTeam(el.dataset.key),
@@ -370,6 +402,11 @@ const actions = {
     const preview = ui.ctl.preview();
     if (!preview || !preview.validation.valid) return;
     const t = ui.ctl.state.dataset.tournaments.find((x) => x.id === ui.ctl.state.tournamentId);
+    if (ui.local) {
+      if (!window.confirm(`Patvirtinti „${t.name}“ rezultatus TIK šioje naršyklėje?\n\nTai NĖRA viešas paskelbimas: kiti lankytojai rezultatų nematys, kol nebus prijungta bendra duomenų bazė.`)) return;
+      await ui.ctl.finalize();
+      return;
+    }
     if (!window.confirm(`Paskelbti „${t.name}“ rezultatus?\n\nPo paskelbimo taškai bus įskaičiuoti į oficialų reitingą. Vėliau rezultatus bus galima tik pataisyti (su priežastimi, fiksuojama audite).`)) return;
     await ui.ctl.finalize();
   },

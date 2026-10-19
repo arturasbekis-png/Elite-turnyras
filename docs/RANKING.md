@@ -184,3 +184,20 @@ in memory.
 * No automatic Pages-path CI is added (workflow files need extra token scope); `npm test` covers the path check.
 * `aciu.html` (existing) links to `/`, which points to the domain root under the GitHub Pages project path. This was
   pre-existing and left unchanged.
+
+
+## Local mode (no Supabase)
+
+While `ranking/runtime-config.js` is **empty**, both pages still work:
+
+* `reitingai.html` loads (calendar, tournaments list, scoring rules, all tabs). With no data it says the shared database
+  is not connected yet and shows no standings – nothing is invented.
+* `reitingai-admin.html` runs **without login** against the same rules/engine (`ranking/local-backend.js`) and keeps the
+  data **only in that browser's `localStorage`** (`ranking/local-store.js`). A permanent banner says the data is NOT
+  published, other visitors never see it, and clearing browser data deletes it. The button is labelled
+  "PATVIRTINTI (TIK ŠIOJE NARŠYKLĖJE)", never "publish". The BANDYMAS tab is hidden (local data is already unofficial).
+* The public page in the same browser shows that local data with its own warning banner; a visitor in any other
+  browser sees the empty state.
+* If the config is filled but wrong (bad URL/key, secret key), local mode is NOT used – the specific problem is shown.
+* Local data is not migrated to Supabase later (re-enter, or use the CSV export). Real publishing requires Supabase
+  (docs/SUPABASE-DIEGIMAS.md); local mode has no authentication and is unsuitable for shared administration.
