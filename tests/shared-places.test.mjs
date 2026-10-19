@@ -14,12 +14,12 @@ const elite = scoringTableFor('elite');
 const challenge = scoringTableFor('challenge');
 const pair = (n) => [`p${n}a`, `p${n}b`];
 
-test('sharedPlacePoints: ELITE 5–6 = 42 (v2), CHALLENGE 5–8 = 15, nedalijama vieta = įprasti taškai', () => {
+test('sharedPlacePoints: ELITE 5–6 = 42 (v2), CHALLENGE 5–8 = 30 (v3: 15 + 15), nedalijama vieta = įprasti taškai', () => {
   assert.equal(sharedPlacePoints(elite, 5, 2), 42);
-  assert.equal(sharedPlacePoints(challenge, 5, 4), 15);
+  assert.equal(sharedPlacePoints(challenge, 5, 4), 30);
   for (const p of [1, 2, 3, 4, 5, 6, 8, 12, 16, 17]) assert.equal(sharedPlacePoints(elite, p, 1), pointsOf(elite, p));
   assert.equal(sharedPlacePoints(elite, 1, 3), 81.33, '(100+80+64)/3 apvalinama iki 2 skaitmenų');
-  assert.equal(sharedPlacePoints(challenge, 5, 3), 16, '(18+16+14)/3');
+  assert.equal(sharedPlacePoints(challenge, 5, 3), 32, '(36+32+28)/3 poros balas (žaidėjui 16)');
   assert.equal(sharedPlacePoints(elite, 9, 4), 20, '9–12 taškai vienodi');
   assert.throws(() => sharedPlacePoints(elite, 5, 0), RangeError);
   assert.throws(() => sharedPlacePoints(elite, 5, 1.5), RangeError);
@@ -87,7 +87,7 @@ test('Peržiūra (previewPoints) rodo tuos pačius taškus kaip oficialus reitin
   const t = tournament('c1', 'challenge', { status: 'draft', allowTies: true });
   const parts = participations('c1', CHALLENGE_TEAMS);
   const preview = previewPoints({ tournament: t, participations: parts });
-  assert.deepEqual(preview.rows.map((x) => x.points), [40, 32, 26, 21, 15, 15, 15, 15]);
+  assert.deepEqual(preview.rows.map((x) => x.points), [80, 64, 52, 42, 30, 30, 30, 30]);
   const players = parts.flatMap((p) => p.playerIds).map((id) => player(id));
   assert.equal(validateResults({ tournament: t, players, participations: parts }).valid, true);
 });
@@ -145,7 +145,7 @@ test('Srautas: gyvi taškai, peržiūra ir juodraštis rodo 42 (ELITE) bei 15 (C
 
   await enableTies(ctl, C1);
   fill(ctl, id, C1, [[1, 13, 14], [2, 15, 16], [3, 17, 18], [4, 19, 20], [5, 1, 2], [5, 3, 4], [5, 5, 6], [5, 7, 8]]);
-  assert.deepEqual(ctl.preview().teams.map((t) => t.points), [40, 32, 26, 21, 15, 15, 15, 15]);
+  assert.deepEqual(ctl.preview().teams.map((t) => t.points), [80, 64, 52, 42, 30, 30, 30, 30]);
   assert.equal(await ctl.saveDraft('draft'), true);
   assert.equal(official(ctl).overall.length, 0);
 });
@@ -172,9 +172,9 @@ test('Srautas: pataisymas perskaičiuoja taškus, o ne prideda prie senų (3 →
   await enableTies(ctl, C1);
   // trūksta ketvirtos poros: trys komandos dalijasi 5 vietą → (18+16+14)/3 = 16
   fill(ctl, id, C1, [[1, 1, 2], [2, 3, 4], [3, 5, 6], [4, 7, 8], [5, 9, 10], [5, 11, 12], [5, 13, 14]]);
-  assert.deepEqual(ctl.preview().teams.map((t) => t.points), [40, 32, 26, 21, 16, 16, 16]);
+  assert.deepEqual(ctl.preview().teams.map((t) => t.points), [80, 64, 52, 42, 32, 32, 32]);
   assert.equal(await ctl.finalize(), true);
-  assert.equal(pts(official(ctl).overall, ctl, id, 9), 16);
+  assert.equal(pts(official(ctl).overall, ctl, id, 9), 32);
 
   // pataisymas: pridedama ketvirta pora → visos keturios po 15
   ctl.selectTournament(C1);
@@ -183,8 +183,8 @@ test('Srautas: pataisymas perskaičiuoja taškus, o ne prideda prie senų (3 →
   ctl.setReason('Pridėta praleista ketvirta pora');
   assert.equal(await ctl.correct(), true);
   const o = official(ctl).overall;
-  for (const n of [9, 10, 11, 12, 13, 14, 15, 16]) assert.equal(pts(o, ctl, id, n), 15, `žaidėjas ${n}`);
-  assert.equal(pts(o, ctl, id, 1), 40, 'nepakitusių komandų taškai nepasikeitė');
+  for (const n of [9, 10, 11, 12, 13, 14, 15, 16]) assert.equal(pts(o, ctl, id, n), 30, `žaidėjas ${n}`);
+  assert.equal(pts(o, ctl, id, 1), 80, 'nepakitusių komandų taškai nepasikeitė');
   assert.equal(o.length, 16);
 
   // tas pats pataisymas pakartotas: rezultatas toks pat, taškai nesikaupia
@@ -194,15 +194,15 @@ test('Srautas: pataisymas perskaičiuoja taškus, o ne prideda prie senų (3 →
   assert.equal(await ctl.correct(), true);
   assert.equal(JSON.stringify(official(ctl).overall.map((r) => [r.playerId, r.points])), before);
 
-  // pataisymas išskaido grupę: ketvirta pora perkeliama į 8 vietą → 5–7 dalijasi trys (po 16), 8 vieta – 12
+  // pataisymas išskaido grupę: ketvirta pora perkeliama į 8 vietą → 5–7 dalijasi trys (po 32 poros balo), 8 vieta – 24
   ctl.selectTournament(C1);
   const last = ctl.state.entries.find((e) => e.playerIds.includes(id(15)));
   ctl.updateTeam(last.key, { position: '8' });
   ctl.setReason('Ketvirtos poros vieta ištaisyta į 8');
   assert.equal(await ctl.correct(), true);
   const o2 = official(ctl).overall;
-  for (const n of [9, 10, 11, 12, 13, 14]) assert.equal(pts(o2, ctl, id, n), 16, `žaidėjas ${n}`);
-  for (const n of [15, 16]) assert.equal(pts(o2, ctl, id, n), 12, `žaidėjas ${n}`);
+  for (const n of [9, 10, 11, 12, 13, 14]) assert.equal(pts(o2, ctl, id, n), 32, `žaidėjas ${n}`);
+  for (const n of [15, 16]) assert.equal(pts(o2, ctl, id, n), 24, `žaidėjas ${n}`);
   assert.equal(o2.length, 16, 'žaidėjų skaičius nepasikeitė');
 
   // neteisinga vieta (praleistas skaičius) atmetama ir taškų nekeičia
@@ -211,7 +211,7 @@ test('Srautas: pataisymas perskaičiuoja taškus, o ne prideda prie senų (3 →
   ctl.updateTeam(again.key, { position: '7' });
   ctl.setReason('Bandymas su neteisinga vieta');
   assert.equal(await ctl.correct(), false);
-  assert.equal(pts(official(ctl).overall, ctl, id, 15), 12, 'atmestas pataisymas taškų nepakeitė');
+  assert.equal(pts(official(ctl).overall, ctl, id, 15), 24, 'atmestas pataisymas taškų nepakeitė');
 });
 
 test('Srautas: be varnelės „leisti pasidalintas vietas“ dubliuota vieta atmetama', async () => {
@@ -228,7 +228,7 @@ test('4 vieta lieka 4 vietoje ir nepatenka į 5–8 grupę (trys komandos 5 viet
   fill(ctl, id, C1, [[1, 1, 2], [2, 3, 4], [3, 5, 6], [4, 7, 8], [5, 9, 10], [5, 11, 12], [5, 13, 14]]);
   const pv = ctl.preview();
   assert.equal(pv.validation.valid, true, JSON.stringify(pv.validation.errors));
-  assert.deepEqual(pv.teams.map((t) => [t.position, t.points]), [[1, 40], [2, 32], [3, 26], [4, 21], [5, 16], [5, 16], [5, 16]]);
+  assert.deepEqual(pv.teams.map((t) => [t.position, t.points]), [[1, 80], [2, 64], [3, 52], [4, 42], [5, 32], [5, 32], [5, 32]]);
   assert.equal(await ctl.saveDraft('draft'), true);
   assert.equal(official(ctl).overall.length, 0, 'juodraštis reitingo nekeičia');
 

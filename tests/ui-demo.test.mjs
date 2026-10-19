@@ -17,7 +17,7 @@ test('Puslapio logika su demonstraciniais duomenimis (tik localhost)', async () 
   assert.ok(app.innerHTML.includes('🟣 ELITE') && app.innerHTML.includes('TURNYRŲ REZULTATAI'));
   assert.ok(!app.innerHTML.includes('BENDRAS REITINGAS'), 'bendro reitingo nėra');
   assert.ok(list().includes('Demo Alfa Žaidėjas'));
-  assert.ok(app.innerHTML.includes('2026–2027 (dabartinis)'));
+  assert.ok(!app.innerHTML.includes('SEZONAS') && !app.innerHTML.includes('class="card toolbar"'), 'vienas sezonas – tuščios sezono skilties nėra');
 
   // Išskleidžiama žaidėjo kortelė
   app.handlers.click(clickOn({ '[data-toggle]': { dataset: { toggle: 'elite:demo-p1|demo-p2' } } }));

@@ -89,6 +89,15 @@ function buildTables(rows, participation) {
 const V2_ROWS = V1_ROWS.map(([from, to, elite, challenge, future]) => [from, to, elite * 2, challenge, future]);
 const V2_PARTICIPATION = [V1_PARTICIPATION[0] * 2, V1_PARTICIPATION[1], V1_PARTICIPATION[2]];
 
+/**
+ * v3 (dabartinė): taškai skiriami KIEKVIENAM ŽAIDĖJUI (žaidėjo taškai = V1_ROWS), o poros reitingo balas yra ABIEJŲ
+ * žaidėjų taškų SUMA. Lentelėje saugomi poros balai (= 2 × žaidėjo taškai): ELITE 1 vieta 50 + 50 = 100,
+ * CHALLENGE 1 vieta 40 + 40 = 80. ELITE poros balai sutampa su v2 (jie nepakito).
+ */
+export const PLAYERS_PER_PAIR = 2;
+const V3_ROWS = V1_ROWS.map(([from, to, ...pts]) => [from, to, ...pts.map((v) => v * PLAYERS_PER_PAIR)]);
+const V3_PARTICIPATION = V1_PARTICIPATION.map((v) => v * PLAYERS_PER_PAIR);
+
 export const SCORING_TABLES = {
   v1: {
     label: 'Pradinė taškų lentelė (ELITE 50 už pirmą vietą)',
@@ -98,8 +107,13 @@ export const SCORING_TABLES = {
     label: 'Dabartinė taškų lentelė (ELITE padvigubinta: 100 už pirmą vietą)',
     tables: buildTables(V2_ROWS, V2_PARTICIPATION),
   },
+  v3: {
+    label: 'Dabartinė taškų lentelė (taškai žaidėjui; poros balas = abiejų žaidėjų suma)',
+    perPlayer: true,
+    tables: buildTables(V3_ROWS, V3_PARTICIPATION),
+  },
 };
-export const DEFAULT_SCORING_VERSION = 'v2';
+export const DEFAULT_SCORING_VERSION = 'v3';
 
 /**
  * Partnerio keitimo taisyklė: jei pasikeičia lygiai vienas poros narys, nauja pora paveldi šią dalį ankstesnės poros
@@ -109,7 +123,7 @@ export const INHERITANCE_RATE = 0.5;
 
 /** Sezonai, žinomi iki duomenų bazės prijungimo (duomenų bazė gali pridėti naujų). */
 export const DEFAULT_SEASONS = [
-  { id: '2026-2027', label: '2026–2027', isCurrent: true, scoringVersion: 'v2' },
+  { id: '2026-2027', label: '2026–2027', isCurrent: true, scoringVersion: 'v3' },
 ];
 
 /**

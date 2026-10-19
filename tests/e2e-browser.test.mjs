@@ -135,7 +135,6 @@ test('Neprijungta duomenų bazė: viešas puslapis rodo oficialų failą visiems
   // Viešas puslapis: oficialūs rezultatai iš statinio failo
   const pub = await context.newPage();
   await pub.goto(`${siteOff}reitingai.html`);
-  await pub.locator('#static-info').waitFor();
   await pub.locator('.rrow').first().waitFor();
   const before = await publicRows(pub);
   assert.equal(before.length, 6, 'ELITE: 6 porų (ne 12 žaidėjų)');
@@ -144,27 +143,27 @@ test('Neprijungta duomenų bazė: viešas puslapis rodo oficialų failą visiems
   assert.equal(pts['Evgenija M. / Milda R.'], 52);
   assert.equal(pts['Danielė Š. / Lea D.'], 42); assert.equal(pts['Ditė / Gabrielė'], 42);
   assert.equal(await pub.locator('.rrow', { hasText: 'Goda' }).count(), 0, 'CHALLENGE poros ELITE lentelėje nerodomos');
-  // CHALLENGE – atskira lentelė; ta pati Lea D. / Danielė Š. pora turi tik CHALLENGE taškus (15), nesumuojama su ELITE
+  // CHALLENGE – atskira lentelė; ta pati Lea D. / Danielė Š. pora turi tik CHALLENGE taškus (30 = 15 + 15), nesumuojama su ELITE
   await pub.goto(`${siteOff}reitingai.html#challenge`);
   await pub.locator('.rrow').first().waitFor();
   const challenge = officialPoints(await publicRows(pub));
   assert.equal(Object.keys(challenge).length, 7);
-  assert.equal(challenge['Luknė M. / Rusnė A.'], 40);
-  assert.equal(challenge['Amelija / Goda'], 21);
-  assert.equal(challenge['Danielė Š. / Lea D.'], 15);
-  assert.equal(challenge['Adrian / Luka B.'], 15);
+  assert.equal(challenge['Luknė M. / Rusnė A.'], 80);
+  assert.equal(challenge['Amelija / Goda'], 42);
+  assert.equal(challenge['Danielė Š. / Lea D.'], 30);
+  assert.equal(challenge['Adrian / Luka B.'], 30);
   assert.equal(await pub.locator('.rmove, .rhead:has-text("Judėjimas")').count(), 0, 'nėra ▲/▼ – nėra su kuo lyginti');
   await pub.goto(`${siteOff}reitingai.html`);
   await pub.locator('.rrow').first().waitFor();
   const text = await pub.locator('#app').innerText();
-  assert.match(text, /Duomenys nepilni/);
-  assert.match(text, /žinomos 3 iš 4/);
+  for (const gone of ['Oficialūs paskelbti rezultatai', 'Vietiniai administravimo juodraščiai', 'Duomenys nepilni', 'žinomos 3 iš 4', 'pilni vardai nepatvirtinti', 'SEZONAS']) assert.ok(!text.includes(gone), `pašalinta: ${gone}`);
   await pub.goto(`${siteOff}reitingai.html#turnyrai`);
   await pub.locator('.tcard').first().waitFor();
   assert.equal(await pub.locator('.tcard').count(), 19, 'kalendorius veikia');
   await pub.goto(`${siteOff}reitingai.html#turnyrai/2026-2027-challenge-1`);
-  await pub.locator('[data-incomplete="5"]').waitFor();
-  assert.match(await pub.locator('.tdetail').innerText(), /Goda[\s\S]*21/);
+  await pub.locator('.tdetail').waitFor();
+  assert.ok(!(await pub.locator('#app').innerText()).includes('žinomos 3 iš 4'));
+  assert.match(await pub.locator('.tdetail').innerText(), /Goda[\s\S]*42/);
 
   // Kitas „lankytojas“ (švari naršyklė) mato tą patį
   const other = await browser.newContext();

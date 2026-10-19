@@ -100,32 +100,24 @@ function render() {
   // Bandomieji sezonai (bandymo režimas) sąraše nerodomi, nebent jie atidaryti tiesioginiu adresu.
   const seasons = state.data.seasons.filter((s) => !s.isTest || s.id === state.seasonId);
   const currentSeason = state.data.seasons.find((s) => s.id === state.seasonId);
-  const seasonSelect = `<label class="field"><span class="lbl">Sezonas</span>
-    <select data-control="season">${seasons.map((s) => `<option value="${R.esc(s.id)}"${s.id === state.seasonId ? ' selected' : ''}>${R.esc(s.label)}${s.isTest ? ' (bandomasis)' : s.isCurrent ? ' (dabartinis)' : ' (archyvas)'}</option>`).join('')}</select></label>`;
+  // Sezono pasirinkimas rodomas tik kai yra iš ko rinktis (vienas sezonas – tuščios srities nerodome).
+  const seasonSelect = seasons.length > 1 ? `<label class="field"><span class="lbl">Sezonas</span>
+    <select data-control="season">${seasons.map((s) => `<option value="${R.esc(s.id)}"${s.id === state.seasonId ? ' selected' : ''}>${R.esc(s.label)}${s.isTest ? ' (bandomasis)' : s.isCurrent ? ' (dabartinis)' : ' (archyvas)'}</option>`).join('')}</select></label>` : '';
   const updated = state.generatedAt ? `Atnaujinta: ${new Date(state.generatedAt).toLocaleString('lt-LT', { dateStyle: 'medium', timeStyle: 'short' })}` : '';
+  const toolbar = seasonSelect ? `<section class="card toolbar"><div class="toolbar-row">${seasonSelect}<span class="meta">${R.esc(updated)}</span></div></section>` : '';
   const tabs = TAB_LABELS.map(([id, label]) => `<a role="tab" class="tab${state.tab === id ? ' active' : ''}" aria-selected="${state.tab === id}" href="${buildRoute({ tab: id, seasonId: state.seasonId }, defaultSeason())}">${label}</a>`).join('');
   const demoBanner = state.demo ? '<div class="demo-banner" role="note">⚠ DEMONSTRACINIAI DUOMENYS – tai ne oficialūs rezultatai (rodoma tik lokaliai kūrimo tikslais).</div>' : '';
 
-  const staticBanner = state.staticMode ? R.renderDataNotices(dataNotices()) : '';
+  const inheritanceNotice = R.renderInheritanceNotice(state.configured ? rankings().inheritanceFlags : []);
 
   const testBanner = currentSeason && currentSeason.isTest ? '<div class="demo-banner" role="note" id="test-banner">⚠ BANDOMASIS SEZONAS – tai bandymo duomenys sistemai patikrinti, o ne oficialūs rezultatai. Jie į oficialų reitingą neįskaičiuojami ir bus ištrinti.</div>' : '';
 
-  app.innerHTML = `${demoBanner}${staticBanner}${testBanner}
-    <section class="card toolbar"><div class="toolbar-row">${seasonSelect}<span class="meta">${R.esc(updated)}</span></div></section>
+  app.innerHTML = `${demoBanner}${inheritanceNotice}${testBanner}
+    ${toolbar}
     <nav class="tabs" role="tablist" aria-label="Reitingų skiltys">${tabs}</nav>
     <section class="panel" id="panel" role="tabpanel"></section>
     ${R.renderRules(seasonScoringVersion())}`;
   renderPanel();
-}
-
-/** Pastabos apie nepilnus duomenis (statinio failo režimas): nepilnos pasidalintos vietos ir ne pilni žaidėjų vardai. */
-function dataNotices() {
-  const incomplete = state.data.tournaments
-    .filter((t) => t.seasonId === state.seasonId)
-    .map((t) => ({ name: t.name, groups: tournamentView(state.data, t.id).incomplete }))
-    .filter((x) => x.groups.length);
-  const limitedNames = state.data.players.filter((p) => p.nameStatus === 'initial' || p.nameStatus === 'first_name_only').length;
-  return { incomplete, limitedNames, inheritanceFlags: rankings().inheritanceFlags };
 }
 
 function seasonScoringVersion() {

@@ -3,21 +3,44 @@ import assert from 'node:assert/strict';
 import { SCORING_TABLES } from '../ranking/config.js';
 import {
   scoringTableFor, pointsForPosition, computeRankings, validateResults, previewPoints, tournamentView, computeAllTime,
-  buildPlayerResults,
+  buildPlayerResults, playerShare, sharedPlacePoints,
 } from '../ranking/engine.js';
 import { build, row, dataset, player, tournament, participations, SEASON } from './helpers.mjs';
 
 const pts = (type, position, version) => pointsForPosition(scoringTableFor(type, version), position);
 
 // ───────── TEST A — turnyrų taškai ─────────
-test('A: pirmos ir antros vietos taškai visoms kategorijoms (dabartinė v2: ELITE padvigubinta)', () => {
+test('A: dabartinė v3 lentelė: taškai žaidėjui, poros balas = abiejų žaidėjų suma', () => {
+  // poros balas (ELITE nepakito: 50 + 50 = 100; CHALLENGE 40 + 40 = 80)
   assert.equal(pts('elite', 1), 100);
-  assert.equal(pts('challenge', 1), 40);
-  assert.equal(pts('future', 1), 30);
+  assert.equal(pts('challenge', 1), 80);
   assert.equal(pts('elite', 2), 80);
-  assert.equal(pts('challenge', 2), 32);
-  assert.equal(pts('future', 2), 24);
+  assert.equal(pts('challenge', 2), 64);
+  assert.equal(pts('challenge', 3), 52);
+  assert.equal(pts('challenge', 4), 42);
   assert.equal(pts('elite', 1, 'v1'), 50, 'sena v1 lentelė išlieka tiems, kas ją nurodo');
+  assert.equal(pts('challenge', 2, 'v2'), 32, 'v2 CHALLENGE nepakito istorijai');
+  assert.equal(playerShare(pts('challenge', 1)), 40);
+  assert.equal(playerShare(pts('challenge', 2)), 32);
+  assert.equal(playerShare(pts('challenge', 3)), 26);
+  assert.equal(playerShare(pts('challenge', 4)), 21);
+  assert.equal(playerShare(sharedPlacePoints(scoringTableFor('challenge'), 5, 4)), 15);
+  assert.equal(sharedPlacePoints(scoringTableFor('challenge'), 5, 4), 30, 'CHALLENGE 5–8: 15 + 15');
+});
+
+test('A: visa v3 lentelė sutampa su užduotimi (žaidėjo taškai × 2), ELITE sutampa su v2', () => {
+  // [vieta, taškai ŽAIDĖJUI: ELITE, CHALLENGE, FUTURE] – perrašyta ranka iš užduoties
+  const perPlayer = [
+    [1, 50, 40, 30], [2, 40, 32, 24], [3, 32, 26, 20], [4, 26, 21, 16], [5, 22, 18, 13], [6, 20, 16, 12], [7, 18, 14, 10], [8, 16, 12, 9],
+    [9, 10, 8, 6], [12, 10, 8, 6], [13, 6, 5, 4], [16, 6, 5, 4], [17, 2, 2, 2], [40, 2, 2, 2],
+  ];
+  for (const [position, e, c, f] of perPlayer) {
+    assert.equal(pts('elite', position, 'v3'), e * 2, `ELITE ${position}`);
+    assert.equal(pts('elite', position, 'v3'), pts('elite', position, 'v2'), `ELITE ${position}: poros balas nepakito`);
+    assert.equal(pts('challenge', position, 'v3'), c * 2, `CHALLENGE ${position}`);
+    assert.equal(pts('future', position, 'v3'), f * 2, `FUTURE ${position}`);
+    assert.equal(playerShare(pts('challenge', position, 'v3')), c, `CHALLENGE ${position} žaidėjui`);
+  }
 });
 
 test('A: visa oficiali v2 taškų lentelė sutampa su užduoties lentele (nepriklausomas kopijavimas)', () => {
@@ -59,7 +82,7 @@ test('A: netinkama vieta ir BEACH LEAGUE FINAL be taškų lentelės', () => {
 });
 
 test('A: taškų lentelė laikoma vienoje vietoje ir turi versijas', () => {
-  assert.deepEqual(Object.keys(SCORING_TABLES), ['v1', 'v2']);
+  assert.deepEqual(Object.keys(SCORING_TABLES), ['v1', 'v2', 'v3']);
 });
 
 // ───────── TEST B — bendras reitingas ─────────

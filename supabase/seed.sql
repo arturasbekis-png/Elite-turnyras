@@ -2,7 +2,7 @@
 -- Sėkloje nėra žaidėjų ar rezultatų. Paleidžiama po schema.sql; pakartotinai paleisti saugu.
 
 insert into public.seasons (id, label, is_current, scoring_version)
-values ('2026-2027', '2026–2027', true, 'v2')
+values ('2026-2027', '2026–2027', true, 'v3')
 on conflict (id) do nothing;
 
 insert into public.tournaments (id, season_id, event_type, number, name, event_date, start_time, status, allow_ties) values
