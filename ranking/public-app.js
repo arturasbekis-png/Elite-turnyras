@@ -13,7 +13,7 @@ const isLocal = ['localhost', '127.0.0.1', '[::1]'].includes(location.hostname);
 const demoRequested = isLocal && new URLSearchParams(location.search).has('demo');
 
 const state = {
-  status: 'loading', error: '', data: null, demo: false, configured: true,
+  status: 'loading', error: '', data: null, demo: false, configured: true, setup: null,
   seasonId: null, tab: 'bendras', tournamentId: null,
   query: '', sort: 'points', gender: '', tournamentFilter: 'all',
   expanded: new Set(), rankings: null, rankingsFor: null, playersById: new Map(),
@@ -36,7 +36,9 @@ async function load() {
     } else if (client.configured()) {
       raw = await client.fetchPublicData();
     } else {
-      console.info('[ELITE reitingai] Duomenų bazė nesukonfigūruota (ranking/runtime-config.js) – rodomas tik kalendorius.');
+      state.setup = client.configProblem();
+      const log = state.setup && state.setup.status !== 'missing' ? console.error : console.info;
+      log.call(console, `[ELITE reitingai] Duomenų bazė nesukonfigūruota (ranking/runtime-config.js): ${state.setup ? `${state.setup.title}. ${state.setup.text}` : ''}`);
       raw = { seasons: [], tournaments: [], players: [], participations: [] };
       state.configured = false;
     }
@@ -88,14 +90,18 @@ function render() {
   if (state.status === 'loading') { app.innerHTML = R.renderLoading(); return; }
   if (state.status === 'error') { app.innerHTML = R.renderError(state.error); return; }
 
-  const seasons = state.data.seasons;
+  // Bandomieji sezonai (bandymo režimas) sąraše nerodomi, nebent jie atidaryti tiesioginiu adresu.
+  const seasons = state.data.seasons.filter((s) => !s.isTest || s.id === state.seasonId);
+  const currentSeason = state.data.seasons.find((s) => s.id === state.seasonId);
   const seasonSelect = `<label class="field"><span class="lbl">Sezonas</span>
-    <select data-control="season">${seasons.map((s) => `<option value="${R.esc(s.id)}"${s.id === state.seasonId ? ' selected' : ''}>${R.esc(s.label)}${s.isCurrent ? ' (dabartinis)' : ' (archyvas)'}</option>`).join('')}</select></label>`;
+    <select data-control="season">${seasons.map((s) => `<option value="${R.esc(s.id)}"${s.id === state.seasonId ? ' selected' : ''}>${R.esc(s.label)}${s.isTest ? ' (bandomasis)' : s.isCurrent ? ' (dabartinis)' : ' (archyvas)'}</option>`).join('')}</select></label>`;
   const updated = state.generatedAt ? `Atnaujinta: ${new Date(state.generatedAt).toLocaleString('lt-LT', { dateStyle: 'medium', timeStyle: 'short' })}` : '';
   const tabs = TAB_LABELS.map(([id, label]) => `<a role="tab" class="tab${state.tab === id ? ' active' : ''}" aria-selected="${state.tab === id}" href="${buildRoute({ tab: id, seasonId: state.seasonId }, defaultSeason())}">${label}</a>`).join('');
   const demoBanner = state.demo ? '<div class="demo-banner" role="note">⚠ DEMONSTRACINIAI DUOMENYS – tai ne oficialūs rezultatai (rodoma tik lokaliai kūrimo tikslais).</div>' : '';
 
-  app.innerHTML = `${demoBanner}
+  const testBanner = currentSeason && currentSeason.isTest ? '<div class="demo-banner" role="note" id="test-banner">⚠ BANDOMASIS SEZONAS – tai bandymo duomenys sistemai patikrinti, o ne oficialūs rezultatai. Jie į oficialų reitingą neįskaičiuojami ir bus ištrinti.</div>' : '';
+
+  app.innerHTML = `${demoBanner}${testBanner}
     <section class="card toolbar"><div class="toolbar-row">${seasonSelect}<span class="meta">${R.esc(updated)}</span></div></section>
     <nav class="tabs" role="tablist" aria-label="Reitingų skiltys">${tabs}</nav>
     <section class="panel" id="panel" role="tabpanel"></section>
@@ -116,7 +122,7 @@ function renderPanel() {
   if (state.tab === 'turnyrai') { renderTournaments(panel); return; }
 
   if (!state.configured) {
-    panel.innerHTML = `<div class="card" id="unconfigured">${R.renderEmpty(...R.UNCONFIGURED)}</div>`;
+    panel.innerHTML = `<div class="card" id="unconfigured">${R.renderSetupProblem(state.setup)}</div>`;
     return;
   }
   const r = rankings();

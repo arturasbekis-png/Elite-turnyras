@@ -56,7 +56,9 @@ export function mergeSeasons(dbSeasons = [], defaults = DEFAULT_SEASONS) {
 
 /** Pradžioje rodomas dabartinis sezonas. */
 export function pickDefaultSeason(seasons) {
-  return (seasons.find((s) => s.isCurrent) || seasons[0] || { id: null }).id;
+  // Bandomieji sezonai (bandymo režimas) niekada nėra numatytasis rodinys.
+  const official = seasons.filter((s) => !s.isTest);
+  return (official.find((s) => s.isCurrent) || official[0] || seasons[0] || { id: null }).id;
 }
 
 /** Viešo vaizdo duomenų rinkinys: DB duomenys + kalendorius (be jokių išgalvotų rezultatų). */

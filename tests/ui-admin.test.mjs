@@ -103,3 +103,51 @@ test('Administravimo puslapis (demo): prisijungimas nereikalingas, visos skiltys
   assert.ok(html().includes('CSV eksportas') && html().includes('Bendras reitingas'));
   app.handlers.click(act('export', { kind: 'overall' }));
 });
+
+test('Administravimas (demo): skiltis BANDYMAS – sukurti, naudoti bandomąjį turnyrą ir viską ištrinti', async () => {
+  const app = dom.el('app');
+  const html = () => app.innerHTML;
+  app.handlers.click(act('tab', { tab: 'test' }));
+  assert.ok(html().includes('BANDYMAS – saugus sistemos patikrinimas'));
+  assert.ok(html().includes('Bandomasis sezonas: <strong>nesukurtas</strong>'));
+  assert.ok(/data-act="delete-test-data" disabled/.test(html()) || html().includes('data-act="delete-test-data"'));
+
+  await app.handlers.click(act('create-test-season'));
+  await tick(50);
+  assert.ok(html().includes('Bandomasis sezonas: <strong>sukurtas</strong>'));
+  assert.ok(html().includes('Bandomasis sezonas sukurtas'), 'sėkmės pranešimas');
+  assert.ok(/data-act="create-test-season" disabled/.test(html()), 'pakartotinai kurti nereikia');
+  assert.ok(html().includes('reitingai.html#bendras?s=bandymas'), 'nuoroda į bandomąjį viešą reitingą');
+
+  // bandomasis žaidėjas per ŽAIDĖJŲ formą
+  app.handlers.click(act('tab', { tab: 'players' }));
+  assert.ok(html().includes('id="new-test"') && html().includes('Bandomasis žaidėjas'));
+  dom.el('new-first').value = 'Bandymas';
+  dom.el('new-last').value = 'Pirmas';
+  dom.el('new-test').checked = true;
+  await app.handlers.submit(submit('player'));
+  await tick(50);
+  assert.ok(html().includes('BANDOMASIS</span>'), 'sąraše pažymėtas kaip bandomasis');
+
+  // atidarome bandomąjį turnyrą; bandomasis žaidėjas siūlomas tik čia
+  app.handlers.click(act('tab', { tab: 'test' }));
+  assert.ok(html().includes('id="test-players-count">1<'));
+  app.handlers.click(act('open-test-tournament'));
+  assert.ok(html().includes('BANDOMASIS turnyras'), 'įspėjimas apie bandomąjį turnyrą');
+  app.handlers.click(act('add-team'));
+  assert.ok(html().includes('Bandymas Pirmas [BANDOMASIS]') && !html().includes('tik bandomajam sezonui'));
+  app.handlers.change(adminChange({ sel: 'tournament' }, '2026-2027-future-1'));
+  app.handlers.click(act('add-team'));
+  assert.ok(html().includes('Bandymas Pirmas [BANDOMASIS] – tik bandomajam sezonui'), 'oficialiame turnyre bandomasis žaidėjas išjungtas');
+
+  // valymas
+  app.handlers.click(act('tab', { tab: 'test' }));
+  await app.handlers.click(act('delete-test-data'));
+  await tick(50);
+  assert.ok(html().includes('Bandymo duomenys ištrinti'));
+  assert.ok(html().includes('Bandomasis sezonas: <strong>nesukurtas</strong>'));
+  assert.ok(html().includes('id="test-players-count">0<'));
+  app.handlers.click(act('tab', { tab: 'players' }));
+  assert.ok(!html().includes('Bandymas Pirmas'), 'bandomasis žaidėjas ištrintas');
+  assert.ok(html().includes('Demo Alfa Žaidėjas'), 'demo/oficialūs žaidėjai liko');
+});

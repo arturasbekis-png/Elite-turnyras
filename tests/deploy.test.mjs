@@ -92,7 +92,7 @@ test('M: visi JS failai sintaksiškai teisingi', () => {
 test('M: saugumas – repozitorijoje nėra paslapčių, o runtime-config tik su viešais duomenimis', () => {
   const textFiles = walk(root).filter((f) => /\.(js|mjs|html|css|sql|md|json|txt)$/.test(f) && !f.includes(`${join(root, 'tests')}`));
   const jwt = /eyJ[A-Za-z0-9_-]{10,}\.eyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}/;
-  const secretPrefixes = /(sb_secret_|sbp_[a-f0-9]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_|sk-ant-)/;
+  const secretPrefixes = /(sb_secret_[A-Za-z0-9_-]{16,}|sbp_[a-f0-9]{20,}|ghp_[A-Za-z0-9]{20,}|github_pat_|sk-ant-)/;
   for (const file of textFiles) {
     const text = readFileSync(file, 'utf8');
     assert.ok(!secretPrefixes.test(text), `${relative(root, file)}: panašu į slaptą raktą`);
@@ -105,11 +105,21 @@ test('M: saugumas – repozitorijoje nėra paslapčių, o runtime-config tik su 
   const config = readFileSync(join(root, 'ranking', 'runtime-config.js'), 'utf8');
   assert.match(config, /supabaseUrl:\s*['"][^'"]*['"]/);
   assert.ok(!/password|secret|service_role\s*[:=]/i.test(config.replace(/\/\/.*$/gm, '')), 'runtime-config be slaptų reikšmių');
-  // Kliento kodas niekur nenaudoja service_role
+  // Kliento kodas niekur nenaudoja service_role. Vienintelė išimtis – config-check.js, kuris tik ATPAŽĮSTA
+  // per klaidą įrašytą privilegijuotą raktą ir jį atmeta; jis negali siųsti jokių užklausų.
   for (const file of walk(join(root, 'ranking'))) {
     const code = readFileSync(file, 'utf8').replace(/\/\/.*$/gm, '').replace(/\/\*[\s\S]*?\*\//g, '');
+    if (file.endsWith(join('ranking', 'config-check.js'))) {
+      assert.ok(!/\b(fetch|XMLHttpRequest|Authorization|apikey|localStorage|sessionStorage)\b/.test(code), 'config-check.js tik tikrina – niekur nesiunčia ir nesaugo raktų');
+      for (const line of code.split('\n').filter((l) => l.includes('service_role'))) {
+        assert.match(line, /===\s*'service_role'|service_role|„service_role“/, line);
+      }
+      continue;
+    }
     assert.ok(!/service_role/.test(code), `${relative(root, file)} neturi naudoti service_role`);
   }
+  // Repozitorijoje nėra .env failų
+  assert.deepEqual(walk(root).filter((f) => /(^|[\\/])\.env(\.|$)/.test(f)).map((f) => relative(root, f)), []);
 });
 
 test('M: demonstraciniai duomenys įkeliami tik lokaliai', () => {

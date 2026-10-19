@@ -17,7 +17,7 @@ const parsePosition = (value) => {
   return Number.isFinite(n) ? n : NaN;
 };
 
-export function createAdminController(backend, { onChange = () => {} } = {}) {
+export function createAdminController(backend, { onChange = () => {}, onAuthLost = () => {} } = {}) {
   let keyCounter = 0;
   const newKey = () => `row-${++keyCounter}`;
 
@@ -59,6 +59,8 @@ export function createAdminController(backend, { onChange = () => {} } = {}) {
       return result === undefined ? true : result;
     } catch (err) {
       setNotice('error', err && err.message ? err.message : messageFor('network'), (err && err.details) || []);
+      // Pasibaigusi sesija: grąžiname į prisijungimą (UI nusprendžia, kaip tai parodyti).
+      if (err && (err.code === 'session_expired' || err.code === 'not_authenticated')) onAuthLost(err);
       return false;
     } finally {
       state.busy = false;
@@ -69,7 +71,7 @@ export function createAdminController(backend, { onChange = () => {} } = {}) {
   async function reload({ keepEntries = false } = {}) {
     state.dataset = await backend.loadAdminDataset();
     if (!state.seasonId || !state.dataset.seasons.some((s) => s.id === state.seasonId)) state.seasonId = pickDefaultSeason(state.dataset.seasons);
-    if (state.tournamentId && !tournament()) state.tournamentId = null;
+    if (state.tournamentId && !tournament()) { state.tournamentId = null; state.entries = []; state.preview = null; state.dirty = false; }
     if (state.tournamentId && !keepEntries) { state.entries = entriesFromDataset(state.tournamentId); state.dirty = false; state.preview = null; }
   }
 
@@ -268,6 +270,34 @@ export function createAdminController(backend, { onChange = () => {} } = {}) {
       await reload({ keepEntries: true });
       setNotice('success', 'Turnyras išsaugotas.');
     }),
+
+    // ── Bandymo režimas ──
+    /** Bandomasis sezonas (neoficialus) su trimis bandomaisiais turnyrais. */
+    createTestSeason: () => run(async () => {
+      await backend.createTestSeason();
+      await reload({ keepEntries: true });
+      setNotice('success', 'Bandomasis sezonas sukurtas. Jis atskirtas nuo oficialių rezultatų.');
+    }),
+    /** Ištrina TIK bandymo duomenis. Oficialūs sezonai, turnyrai ir žaidėjai nepaliečiami. */
+    deleteTestData: () => run(async () => {
+      const counts = await backend.deleteTestData();
+      state.preview = null;
+      await reload();
+      const c = counts || {};
+      setNotice('success', `Bandymo duomenys ištrinti (sezonų: ${c.seasons ?? 0}, turnyrų: ${c.tournaments ?? 0}, komandų: ${c.teams ?? 0}, žaidėjų: ${c.players ?? 0}). Oficialūs duomenys nepaliesti.`);
+    }),
+    testSummary() {
+      const ds = state.dataset;
+      const season = ds.seasons.find((x) => x.isTest) || null;
+      const tournaments = season ? ds.tournaments.filter((t) => t.seasonId === season.id) : [];
+      return {
+        season,
+        tournaments,
+        players: ds.players.filter((p) => p.isTest && !p.mergedInto),
+        published: tournaments.filter((t) => t.status === OFFICIAL_STATUS),
+        teams: ds.participations.filter((p) => tournaments.some((t) => t.id === p.tournamentId)).length,
+      };
+    },
 
     // ── Auditas ──
     loadAudit: () => run(async () => { state.audit = await backend.listAudit(200); }),

@@ -41,3 +41,9 @@ export function build(spec) {
 export function row(rows, playerId) {
   return rows.find((r) => r.playerId === playerId);
 }
+
+/** Nepasirašytas „JWT“ formos testinis raktas – tik formato patikroms (jokios galios neturi). */
+export function fakeJwt(payload) {
+  const b = (o) => Buffer.from(JSON.stringify(o)).toString('base64url');
+  return `${b({ alg: 'none', typ: 'JWT' })}.${b(payload)}.${Buffer.from('test-signature-not-real').toString('base64url')}`;
+}

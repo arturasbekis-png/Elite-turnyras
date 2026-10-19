@@ -280,3 +280,89 @@ test('Rezultatų suvedimas: taškai kiekvienam žaidėjui rodomi iš karto, jau 
   ctl.updateTeam(ctl.state.entries[0].key, { position: '1' });
   assert.equal(ctl.livePoints().scored, false, 'BEACH LEAGUE FINAL taškų neskiria');
 });
+
+// ───────── Bandymo režimas (memory backend atkartoja DB elgesį) ─────────
+
+test('Bandymo režimas: sezonas, bandomieji žaidėjai, paskelbimas ir valymas nepaliečia oficialių duomenų', async () => {
+  const { ctl, id } = await setup();
+  // oficialus rezultatas
+  fillTeams(ctl, id, [[1, 'A', 'B'], [2, 'C', 'D']]);
+  assert.equal(await ctl.saveDraft('draft'), true);
+  assert.equal(await ctl.finalize(), true);
+  const before = JSON.stringify(ctl.state.dataset);
+  const rankBefore = official(ctl).overall.map((r) => [r.name, r.points]);
+
+  assert.equal(ctl.testSummary().season, null);
+  assert.equal(await ctl.createTestSeason(), true);
+  assert.equal(await ctl.createTestSeason(), true, 'kartotinis kūrimas saugus');
+  assert.equal(ctl.state.dataset.tournaments.filter((t) => t.seasonId === 'bandymas').length, 3);
+  assert.equal(ctl.state.dataset.seasons.find((s) => s.id === 'bandymas').isCurrent, false);
+
+  for (const last of ['T1', 'T2', 'T3', 'T4']) await ctl.createPlayer({ firstName: 'Bandymas', lastName: last, isTest: true });
+  const tid = (n) => ctl.state.dataset.players.find((p) => p.fullName === `Bandymas ${n}`).id;
+  assert.equal(ctl.testSummary().players.length, 4);
+
+  // bandomasis žaidėjas oficialiame turnyre – atmetama
+  const E2 = '2026-2027-elite-2';
+  ctl.selectSeason(SEASON);
+  ctl.selectTournament(E2);
+  ctl.addTeam();
+  ctl.updateTeam(ctl.state.entries[0].key, { position: '1', player1: tid('T1'), player2: id('E') });
+  assert.equal(await ctl.saveDraft('draft'), false);
+  assert.match(ctl.state.notice.text, /Bandomasis žaidėjas negali dalyvauti oficialiame turnyre/);
+
+  // bandomajame turnyre veikia pilnas srautas
+  ctl.selectSeason('bandymas');
+  ctl.selectTournament('bandymas-elite-1');
+  [[1, 'T1', 'T2'], [2, 'T3', 'T4']].forEach(([pos, a, b]) => {
+    ctl.addTeam();
+    ctl.updateTeam(ctl.state.entries.at(-1).key, { position: String(pos), player1: tid(a), player2: tid(b) });
+  });
+  assert.deepEqual(ctl.preview().teams.map((t) => t.points), [50, 40]);
+  assert.equal(await ctl.saveDraft('draft'), true);
+  assert.equal(await ctl.finalize(), true);
+  assert.equal(ctl.testSummary().published.length, 1);
+  const testRanks = computeRankings(ctl.state.dataset, { seasonId: 'bandymas' }).overall;
+  assert.deepEqual(testRanks.slice(0, 2).map((r) => r.points), [50, 50], 'abu partneriai gauna pilnus taškus');
+  assert.deepEqual(official(ctl).overall.map((r) => [r.name, r.points]), rankBefore, 'oficialus reitingas nepasikeitė');
+
+  // valymas
+  assert.equal(await ctl.deleteTestData(), true);
+  assert.match(ctl.state.notice.text, /sezonų: 1, turnyrų: 3, komandų: 2, žaidėjų: 4/);
+  assert.equal(ctl.testSummary().season, null);
+  assert.equal(ctl.state.seasonId, SEASON, 'grįžtama į oficialų sezoną');
+  assert.equal(ctl.state.tournamentId, null);
+  assert.deepEqual(ctl.state.entries, []);
+  assert.equal(JSON.stringify(ctl.state.dataset.seasons.map((s) => s.id)), JSON.stringify(JSON.parse(before).seasons.map((s) => s.id)));
+  assert.equal(JSON.stringify(ctl.state.dataset.players), JSON.stringify(JSON.parse(before).players), 'oficialūs žaidėjai nepakitę');
+  assert.deepEqual(official(ctl).overall.map((r) => [r.name, r.points]), rankBefore);
+});
+
+test('Bandymo režimas: bandomojo ir oficialaus žaidėjo jungti negalima; trynimas sustoja, jei bandomasis žaidėjas oficialiame turnyre', async () => {
+  const { backend, ctl, id } = await setup();
+  await ctl.createTestSeason();
+  await ctl.createPlayer({ firstName: 'Bandymas', lastName: 'Vienas', isTest: true });
+  const t1 = ctl.state.dataset.players.find((p) => p.isTest).id;
+  assert.equal(await ctl.mergePlayers(id('A'), t1, 'bandymas'), false);
+  assert.match(ctl.state.notice.text, /Bandomojo žaidėjo negalima sujungti su oficialiu/);
+  // sezono su bandomuoju požymiu keisti negalima
+  assert.equal(await ctl.upsertSeason({ id: 'bandymas', label: 'Pakeista', isCurrent: true }), false);
+  assert.match(ctl.state.notice.text, /Bandomojo sezono duomenų keisti/);
+  void backend;
+});
+
+test('Pasibaigusi sesija: kontroleris praneša UI, kad reikia prisijungti iš naujo', async () => {
+  let lost = null;
+  const backend = createMemoryBackend(empty());
+  backend.createPlayer = async () => { throw new ApiError('session_expired', 'Prisijungimo galiojimas baigėsi. Prisijunkite iš naujo.'); };
+  const ctl = createAdminController(backend, { onAuthLost: (err) => { lost = err; } });
+  await ctl.load();
+  assert.equal(await ctl.createPlayer({ firstName: 'A', lastName: 'B' }), false);
+  assert.equal(lost && lost.code, 'session_expired');
+  assert.equal(ctl.state.notice.type, 'error');
+  // kitos klaidos prisijungimo neišmeta
+  lost = null;
+  backend.createPlayer = async () => { throw new ApiError('not_authorized', 'Neturite administratoriaus teisių šiam veiksmui.'); };
+  await ctl.createPlayer({ firstName: 'A', lastName: 'C' });
+  assert.equal(lost, null);
+});

@@ -47,11 +47,23 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 export async function startLocalSupabase({
   pg, database, staticRoot, basePath = '/Elite-turnyras/', users = [], configured = true, port = 0,
+  // keyMode: 'anon-jwt' (senasis anon raktas, JWT) arba 'publishable' (naujas sb_publishable_… raktas – NE JWT).
+  // runtime: neprivaloma ranking/runtime-config.js reikšmių pakeitimas ({ supabaseUrl, supabaseAnonKey }; '@origin' = serverio adresas).
+  keyMode = 'anon-jwt', runtime = null,
 }) {
   const jwtSecret = randomBytes(32).toString('hex');
-  const anonKey = signJwt({ role: 'anon', iss: 'local-test', exp: Math.floor(Date.now() / 1000) + 86400 }, jwtSecret);
+  const anonJwt = signJwt({ role: 'anon', iss: 'local-test', exp: Math.floor(Date.now() / 1000) + 86400 }, jwtSecret);
+  const publishableKey = `sb_publishable_${randomBytes(18).toString('base64url')}`;
+  const anonKey = keyMode === 'publishable' ? publishableKey : anonJwt;
+  // Kaip tikras Supabase vartai: apikey antraštėje priimamas JWT anon raktas arba publishable raktas.
+  const apikeyValid = (value) => {
+    if (keyMode === 'publishable' && value === publishableKey) return true;
+    const claims = verifyJwt(value, jwtSecret);
+    return Boolean(claims && !claims.expired);
+  };
   const accounts = users.map((u) => ({ ...u }));
   const refreshTokens = new Map();
+  let generation = 0; // didinama, kai testas „atšaukia“ sesijas (žetonai su senesne karta laikomi nebegaliojančiais)
   const stats = { requests: [] };
 
   // ── PostgreSQL per psql ──
@@ -98,18 +110,19 @@ export async function startLocalSupabase({
   // ── Autentifikacija ──
   function authenticate(req) {
     const apikey = req.headers.apikey;
-    if (!apikey || !verifyJwt(apikey, jwtSecret) || verifyJwt(apikey, jwtSecret).expired) return { error: { status: 401, body: { message: 'No API key found in request', hint: 'No `apikey` request header or url param was found.' } } };
+    if (!apikey || !apikeyValid(apikey)) return { error: { status: 401, body: { message: 'No API key found in request', hint: 'No `apikey` request header or url param was found.' } } };
     const bearer = String(req.headers.authorization || '').replace(/^Bearer\s+/i, '');
     if (!bearer) return { role: 'anon', claims: { role: 'anon' } };
     const claims = verifyJwt(bearer, jwtSecret);
-    if (!claims) return { error: { status: 401, body: { code: 'PGRST301', message: 'JWT invalid' } } };
-    if (claims.expired) return { error: { status: 401, body: { code: 'PGRST301', message: 'JWT expired' } } };
+    // Publishable raktas NĖRA JWT: kaip tikras Supabase, jį Authorization: Bearer antraštėje atmetame.
+    if (!claims) return { error: { status: 401, body: { code: 'PGRST301', message: 'Invalid JWT' } } };
+    if (claims.expired || (claims.role === 'authenticated' && (claims.gen ?? 0) < generation)) return { error: { status: 401, body: { code: 'PGRST301', message: 'JWT expired' } } };
     return { role: claims.role === 'authenticated' ? 'authenticated' : 'anon', claims };
   }
 
   function issueTokens(account) {
     const now = Math.floor(Date.now() / 1000);
-    const access = signJwt({ sub: account.id, role: 'authenticated', aud: 'authenticated', email: account.email, iat: now, exp: now + 3600 }, jwtSecret);
+    const access = signJwt({ sub: account.id, role: 'authenticated', aud: 'authenticated', email: account.email, iat: now, exp: now + 3600, gen: generation }, jwtSecret);
     const refresh = randomUUID();
     refreshTokens.set(refresh, account.id);
     return { access_token: access, token_type: 'bearer', expires_in: 3600, refresh_token: refresh, user: { id: account.id, email: account.email } };
@@ -192,7 +205,7 @@ export async function startLocalSupabase({
 
   // ── Auth ──
   async function handleAuth(req, res, url, bodyText) {
-    if (!req.headers.apikey || !verifyJwt(req.headers.apikey, jwtSecret)) return send(res, 401, { message: 'No API key found in request' });
+    if (!req.headers.apikey || !apikeyValid(req.headers.apikey)) return send(res, 401, { message: 'No API key found in request' });
     if (url.pathname === '/auth/v1/token' && req.method === 'POST') {
       let body = {};
       try { body = JSON.parse(bodyText || '{}'); } catch (_) { /* tuščia */ }
@@ -220,7 +233,14 @@ export async function startLocalSupabase({
   }
 
   // ── Statinė svetainė ──
-  const runtimeConfig = () => `export const RUNTIME = { supabaseUrl: ${configured ? JSON.stringify(origin()) : "''"}, supabaseAnonKey: ${configured ? JSON.stringify(anonKey) : "''"} };\n`;
+  const runtimeConfig = () => {
+    if (runtime) {
+      // '@service' = imituojamas PRIVILEGIJUOTAS raktas (service_role), kad būtų įrodyta, jog svetainė jo nenaudoja.
+      const fix = (v) => (v === '@origin' ? origin() : v === '@key' ? anonKey : v === '@service' ? signJwt({ role: 'service_role', iss: 'local-test', exp: Math.floor(Date.now() / 1000) + 86400 }, jwtSecret) : v);
+      return `export const RUNTIME = ${JSON.stringify({ supabaseUrl: fix(runtime.supabaseUrl), supabaseAnonKey: fix(runtime.supabaseAnonKey) })};\n`;
+    }
+    return `export const RUNTIME = { supabaseUrl: ${configured ? JSON.stringify(origin()) : "''"}, supabaseAnonKey: ${configured ? JSON.stringify(anonKey) : "''"} };\n`;
+  };
 
   async function handleStatic(res, pathname) {
     if (!pathname.startsWith(basePath)) { res.writeHead(404); return res.end('Not found (outside project path)'); }
@@ -262,8 +282,13 @@ export async function startLocalSupabase({
     origin: origin(),
     siteUrl: `${origin()}${basePath}`,
     anonKey,
+    keyMode,
     jwtSecret,
     stats,
+    /** Visi iki šiol išduoti prieigos žetonai nebegalioja (atnaujinimo raktai lieka geri). */
+    revokeAccessTokens: () => { generation += 1; },
+    /** Nebegalioja ir žetonai, ir atnaujinimo raktai (pvz. administratorius atjungtas serveryje). */
+    revokeSessions: () => { generation += 1; refreshTokens.clear(); },
     /** Kuria testinį JWT (pvz. pasibaigusį ar svetimą) – naudojama neteisėtų bandymų testams. */
     signToken: (claims, secret = jwtSecret) => signJwt(claims, secret),
     close: () => new Promise((resolve) => server.close(resolve)),

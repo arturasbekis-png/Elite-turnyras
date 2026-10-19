@@ -16,7 +16,8 @@ ranking/config.js          single source of truth: scoring tables, categories, e
 ranking/events.js          2026–2027 calendar events (kept in sync with index.html by a test)
 ranking/engine.js          the ONE deterministic calculation engine (points, validation, rankings, tie-breakers)
 ranking/domain.js          reference lifecycle: draft → finalize (once) → correct (audited) → merge players
-ranking/api.js             dependency-free Supabase REST client (anon key only; admin calls need a session)
+ranking/config-check.js    validates runtime-config.js (missing / invalid / privileged key → clear message, no requests)
+ranking/api.js             dependency-free Supabase REST client (public key only; admin calls need a session)
 ranking/admin-controller.js  admin workflow logic (DOM-free, tested)
 ranking/public-app.js, admin-app.js, render.js, view.js, ranking.css   UI
 ranking/memory-backend.js, dev/demo-data.js   local demo/testing only – never loaded in production
@@ -81,13 +82,31 @@ free projects can be paused). Nothing below has been done for you: it needs your
    (Authentication → Sign In / Providers → disable "Allow new users to sign up"; menu wording may differ slightly by Supabase version).
 4. Make that user an admin: run `supabase/make-admin.sql` in the SQL Editor after replacing the placeholder e-mail
    (it inserts into `public.admins` and shows the result).
-5. Project Settings → API: copy the **Project URL** and the **anon / publishable** key into
-   `ranking/runtime-config.js`. The anon key is meant to be public; the database rules protect the data.
-   **Never** put the `service_role` key (or any password) in the repository — `npm test` fails if one is detected.
+5. Project Settings → API Keys: copy the **Project URL** and the **publishable** key (`sb_publishable_…`; the legacy
+   `anon` JWT also works) into `ranking/runtime-config.js`. The key is meant to be public; the database rules protect the data.
+   **Never** put a `secret` / `service_role` key (or any password) in the repository — `npm test` fails if one is detected,
+   and the site itself refuses to use such a key (`ranking/config-check.js`), shows a clear warning, and sends no request.
 6. Merge to `main` (GitHub Pages redeploys). Open `reitingai-admin.html` and sign in.
 
-Until step 5 is done the public page shows the calendar and an empty ranking ("Oficialių rezultatų dar nėra") – it
-never shows invented data.
+**Configuration mechanism.** `ranking/runtime-config.js` is the only place. It ships empty (no placeholder credentials).
+`ranking/config-check.js` classifies it: `missing` (public page: "Reitingai dar neprijungti"), `incomplete`, `bad_url`,
+`bad_key`, `secret_key` or `ok`; the public and admin pages show the specific reason. A publishable key is sent only in the
+`apikey` header (it is not a JWT, so never as `Authorization: Bearer`, per Supabase's API-key docs); a legacy anon JWT may
+also go as Bearer; after sign-in the Bearer is the user's session JWT. Build-time injection (GitHub Actions) was
+deliberately **not** added: the site has no build step, two public values are not secrets, and changing the Pages
+deployment method is a bigger risk than benefit.
+
+Until step 5 is done the public page shows the calendar and the "not connected" message – it never shows invented data.
+
+### Test mode (safe real-project verification)
+
+Admin tab **BANDYMAS** creates a separate *test season* (`bandymas`, `seasons.is_test`) with three test tournaments;
+players created with the "Bandomasis žaidėjas" box get `players.is_test` (settable only at creation). Test data can be
+published and viewed at `reitingai.html#bendras?s=bandymas` (with a warning banner) but is excluded from the default
+season, the season selector and the all-time statistics. The database refuses test players in official tournaments
+(`test_player_in_official`), refuses merging test with official players, locks the test season and refuses moving
+official tournaments into it. `admin_delete_test_data()` removes only `is_test` rows (stops without deleting anything if
+a test player sits in an official tournament); the audit log is retained. No hand-written SQL reset is ever needed.
 
 ## Admin workflow (`reitingai-admin.html`)
 
@@ -111,7 +130,15 @@ integer positions 1..N; no duplicate positions unless shared places are enabled 
 * Tables have RLS enabled and no `anon` privileges. Admin changes happen only through `admin_*` functions that check
   `admins` membership on the server. There is no direct write access to results tables, even for admins.
 * The audit log cannot be updated or deleted.
-* The browser holds only the public anon key; the admin session token lives in `sessionStorage`; passwords are never stored.
+* The browser holds only the public key; the admin session token lives in `sessionStorage`; passwords are never stored.
+  An expired access token is refreshed once and the request retried; if the session can no longer be refreshed the page
+  returns to the login form.
+* All `SECURITY DEFINER` functions pin `search_path = public, pg_temp`; internal helpers (`_apply_entries`,
+  `_validate_results`, `_log_audit`, `assert_admin`, …) have no client EXECUTE rights; sequences have no client rights.
+* `make-admin.sql` authorises only a **confirmed** e-mail. Admin rights cannot be granted by any API call – only by the project
+  owner in the SQL Editor. Test `tests/sql.test.mjs` audits table/column/function/sequence privileges structurally.
+* Not verified: the hosted Supabase service itself (Auth, PostgREST gateway, API-key handling, dashboard settings such as
+  disabled sign-ups). `docs/SUPABASE-DIEGIMAS.md` steps 10 and 12 are the manual checks for the real project.
 
 ## Tests
 
@@ -137,7 +164,8 @@ ELITE_TEST_PG_HOST=/path/to/socket-or-host ELITE_TEST_PG_PORT=5432 [ELITE_TEST_P
 They use `tests/sql/supabase-shim.sql` to imitate Supabase's `auth` schema and permissive default grants. That proves
 the schema's rules and functions, but it is **not** a Supabase project: Supabase Auth, PostgREST and the hosted
 service itself are only covered by the setup checklist above and a manual smoke test after you configure it
-(sign in, save a draft, publish, check the public page from another browser, try publishing while signed out).
+(sign in, save a draft, publish, check the public page from another browser, try publishing while signed out) —
+see steps 10–12 of `docs/SUPABASE-DIEGIMAS.md` (the BANDYMAS tab makes this safe to do on the real project).
 
 ## Local development
 

@@ -526,6 +526,218 @@ test('Atsijungimas: admin veiksmai nebeprieinami; neteisėti rašymai tiesiai į
   assert.equal((await api('/rest/v1/rpc/public_ranking_data', { body: {} })).status, 200);
 });
 
+test('Naujas publishable raktas (NE JWT): viešas puslapis ir administravimas veikia, raktas niekada nesiunčiamas kaip Bearer', { skip }, async () => {
+  const pub = await startLocalSupabase({ pg: { host: HOST, port: PORT, user: USER }, database: DB, staticRoot: root, users: [ADMIN, OUTSIDER], keyMode: 'publishable' });
+  try {
+    assert.match(pub.anonKey, /^sb_publishable_/);
+    const context = await browser.newContext();
+    const page = await newPage(context);
+    await page.goto(`${pub.siteUrl}reitingai.html`);
+    await page.locator('.rrow').first().waitFor();
+    assert.equal((await publicRows(page)).length, 8, 'oficialūs rezultatai matomi ir su publishable raktu');
+
+    await page.goto(`${pub.siteUrl}reitingai-admin.html`);
+    await page.fill('#login-email', ADMIN.email);
+    await page.fill('#login-password', ADMIN.password);
+    await page.click('form[data-form="login"] button[type="submit"]');
+    await page.getByText('PRIDĖTI ŽAIDĖJĄ').waitFor();
+    const before = owner('select count(*) from public.players;');
+    await addPlayer(page, 'Publishable', 'Bandymas');
+    assert.equal(owner('select count(*) from public.players;'), String(Number(before) + 1), 'rašymas veikia su publishable raktu');
+    owner(`delete from public.players where full_name = 'Publishable Bandymas';`);
+
+    // Anoniminės užklausos neturi Bearer antraštės (publishable raktas nėra JWT)
+    const anonCalls = pub.stats.requests.filter((r) => r.path.includes('public_ranking_data'));
+    assert.ok(anonCalls.length >= 1);
+    assert.ok(anonCalls.every((r) => r.hasBearer === false), 'viešos užklausos be Authorization antraštės');
+    await context.close();
+  } finally {
+    await pub.close();
+  }
+});
+
+test('Privilegijuotas raktas per klaidą įrašytas į konfigūraciją: puslapiai rodo perspėjimą ir NIEKUR nesiunčia užklausų', { skip }, async () => {
+  const bad = await startLocalSupabase({ pg: { host: HOST, port: PORT, user: USER }, database: DB, staticRoot: root, users: [ADMIN], runtime: { supabaseUrl: '@origin', supabaseAnonKey: '@service' } });
+  try {
+    const context = await browser.newContext();
+    const page = await newPage(context);
+    await page.goto(`${bad.siteUrl}reitingai.html`);
+    await page.locator('#unconfigured [data-setup="secret_key"]').waitFor();
+    assert.match(await page.locator('#unconfigured').innerText(), /PRIVILEGIJUOTAS raktas/);
+    await page.goto(`${bad.siteUrl}reitingai-admin.html`);
+    await page.locator('#unconfigured [data-setup="secret_key"]').waitFor();
+    assert.equal(await page.locator('#login-email').count(), 0, 'prisijungimo formos nėra');
+    const apiCalls = bad.stats.requests.filter((r) => r.path.startsWith('/rest/') || r.path.startsWith('/auth/'));
+    assert.deepEqual(apiCalls, [], 'privilegijuotas raktas nenaudojamas jokioje užklausoje');
+    await context.close();
+  } finally {
+    await bad.close();
+  }
+});
+
+test('Sesijos galiojimas: nebegaliojantį žetoną puslapis atnaujina pats; atšaukta sesija grąžina į prisijungimą', { skip }, async () => {
+  const context = await browser.newContext();
+  const page = await newPage(context);
+  await adminLogin(page);
+  await page.getByText('PRIDĖTI ŽAIDĖJĄ').waitFor();
+
+  // 1) serveris žetoną laiko nebegaliojančiu, bet atnaujinimo raktas geras → veiksmas pavyksta po automatinio atnaujinimo
+  server.revokeAccessTokens();
+  await addPlayer(page, 'Sesija', 'Atnaujinta');
+  assert.equal(owner(`select count(*) from public.players where full_name = 'Sesija Atnaujinta';`), '1');
+  assert.equal(await page.locator('form[data-form="login"]').count(), 0, 'prisijungimo forma nerodoma');
+
+  // 2) sesija atšaukta visiškai → grįžtama į prisijungimą su paaiškinimu, nieko neįrašyta
+  server.revokeSessions();
+  await page.fill('#new-first', 'Sesija');
+  await page.fill('#new-last', 'Pasibaigusi');
+  await page.click('form[data-form="player"] button[type="submit"]');
+  await page.locator('form[data-form="login"]').waitFor();
+  assert.match(await page.locator('.notice.error').innerText(), /Prisijungimo galiojimas baigėsi/);
+  assert.equal(owner(`select count(*) from public.players where full_name = 'Sesija Pasibaigusi';`), '0', 'pasibaigusi sesija nieko neįrašė');
+  assert.equal(await page.evaluate(() => sessionStorage.length), 0, 'negaliojanti sesija išvalyta');
+
+  // 3) po perkrovimo su senu žetonu ir geru atnaujinimo raktu sesija atkuriama
+  await page.fill('#login-email', ADMIN.email);
+  await page.fill('#login-password', ADMIN.password);
+  await page.click('form[data-form="login"] button[type="submit"]');
+  await page.getByText('PRIDĖTI ŽAIDĖJĄ').waitFor();
+  server.revokeAccessTokens();
+  await page.reload();
+  await page.getByText('PRIDĖTI ŽAIDĖJĄ').waitFor();
+  assert.equal(await page.locator('form[data-form="login"]').count(), 0, 'perkrovus sesija atkurta per atnaujinimo raktą');
+  owner(`delete from public.players where full_name = 'Sesija Atnaujinta';`);
+  await context.close();
+});
+
+test('BANDYMAS (realioje DB per naršyklę): išbandomas visas kelias su neoficialiais duomenimis, o valymas grąžina tiksliai ankstesnę būseną', { skip }, async () => {
+  const strip = (d) => { const copy = JSON.parse(JSON.stringify(d)); delete copy.generatedAt; return copy; };
+  const officialBefore = strip(await publicDataset());
+  const officialCount = officialBefore.participations.length;
+  const context = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const page = await newPage(context);
+  await adminLogin(page);
+  await page.getByText('PRIDĖTI ŽAIDĖJĄ').waitFor();
+
+  // 1. Sukurti bandomąjį sezoną
+  await page.click('[data-act="tab"][data-tab="test"]');
+  await page.getByRole('heading', { name: /BANDYMAS – saugus sistemos patikrinimas/ }).waitFor();
+  await shot(page, 'admin-bandymas-pradzia');
+  await page.click('[data-act="create-test-season"]');
+  await page.locator('.notice.success', { hasText: 'Bandomasis sezonas sukurtas' }).waitFor();
+  assert.equal(owner(`select count(*) from public.tournaments where season_id = 'bandymas';`), '3');
+
+  // 2. Bandomieji žaidėjai (su varnele)
+  await page.click('[data-act="tab"][data-tab="players"]');
+  for (const last of ['Pirmas', 'Antras', 'Trečias', 'Ketvirtas']) {
+    await page.fill('#new-first', 'Bandymas');
+    await page.fill('#new-last', last);
+    await page.check('#new-test');
+    await page.click('form[data-form="player"] button[type="submit"]');
+    await page.locator('.notice.success', { hasText: `Bandymas ${last}` }).waitFor();
+    assert.equal(await page.locator('#new-test').isChecked(), false, 'varnelė po išsaugojimo išvaloma (kad netyčia nebūtų bandomasis kitas žaidėjas)');
+  }
+  assert.equal(owner(`select count(*) from public.players where is_test;`), '4');
+  assert.equal(owner(`select count(*) from public.players where not is_test and full_name like 'Bandymas %';`), '0');
+  assert.ok(await page.locator('#players-table .status', { hasText: 'BANDOMASIS' }).count() >= 4);
+
+  // 3. Bandomasis turnyras: juodraštis nematomas viešai, paskelbimas matomas tik bandomajame sezone
+  await page.click('[data-act="tab"][data-tab="test"]');
+  await page.click('[data-act="open-test-tournament"]');
+  await page.locator('#test-season-note').waitFor();
+  const rows = page.locator('#results-table tbody tr');
+  await page.click('[data-act="add-team"]'); await page.click('[data-act="add-team"]');
+  const teams = [['Bandymas Pirmas', 'Bandymas Antras', '1', '50'], ['Bandymas Trečias', 'Bandymas Ketvirtas', '2', '40']];
+  for (let i = 0; i < teams.length; i += 1) {
+    const [a, b, pos, pts] = teams[i];
+    await rows.nth(i).locator('select[data-field="player1"]').selectOption(pid(a));
+    await rows.nth(i).locator('select[data-field="player2"]').selectOption(pid(b));
+    await rows.nth(i).locator('input[data-field="position"]').fill(pos);
+    assert.equal((await rows.nth(i).locator('[data-points]').innerText()).trim(), pts);
+  }
+  await page.click('[data-act="save-draft"]');
+  await page.locator('.notice.success', { hasText: 'Juodraštis išsaugotas' }).waitFor();
+  assert.equal(strip(await publicDataset()).participations.length, officialCount, 'bandomasis juodraštis viešai nematomas');
+  await page.click('[data-act="finalize"]');
+  await page.locator('.notice.success', { hasText: 'Rezultatai patvirtinti ir paskelbti' }).waitFor();
+  await shot(page, 'admin-bandymas-paskelbta');
+
+  // Oficialiame turnyre bandomieji žaidėjai išjungti (ir serveris jų neįsileistų)
+  await page.selectOption('select[data-sel="season"]', '2026-2027');
+  await page.selectOption('select[data-sel="tournament"]', C1);
+  await page.click('[data-act="add-team"]');
+  const blockedOpt = page.locator(`#results-table select[data-field="player1"] option[value="${pid('Bandymas Pirmas')}"]`).first();
+  assert.notEqual(await blockedOpt.getAttribute('disabled'), null, 'bandomasis žaidėjas oficialiame turnyre neleidžiamas');
+  const token = await tokenFor(ADMIN);
+  const sneaky = await api('/rest/v1/rpc/admin_save_results', { token, body: { p_tournament_id: C1, p_status: 'draft', p_entries: [{ position: 1, playerIds: [pid('Bandymas Pirmas'), pid('Jonas Jonaitis')] }] } });
+  assert.equal(sneaky.status, 400);
+  assert.equal(sneaky.json.message, 'test_player_in_official');
+
+  // 4. Viešai: bandomasis sezonas tik tiesioginiu adresu, su perspėjimu; pagrindinis reitingas nepakito
+  const anon = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  const pub = await newPage(anon);
+  await pub.goto(`${site}reitingai.html`);
+  await pub.locator('.rrow').first().waitFor();
+  const mainRows = await publicRows(pub);
+  assert.equal(mainRows.length, 8, 'pagrindiniame reitinge tik oficialūs žaidėjai');
+  assert.ok(mainRows.every((r) => !r.name.startsWith('Bandymas')));
+  assert.ok(!(await pub.locator('#app').innerText()).includes('BANDOMASIS SEZONAS'));
+  assert.ok(!(await pub.locator('#alltime').innerText()).includes('Bandymas'), 'istorinėje statistikoje bandomųjų nėra');
+  await pub.goto(`${site}reitingai.html#bendras?s=bandymas`);
+  await pub.locator('#test-banner').waitFor();
+  await pub.locator('.rrow').first().waitFor();
+  const testRows = await publicRows(pub);
+  assert.deepEqual(testRows.map((r) => r.points).sort((x, y) => y - x), [50, 50, 40, 40], 'abu partneriai gauna pilnus taškus');
+  assert.ok(testRows.every((r) => r.name.startsWith('Bandymas')));
+  await shot(pub, 'viesas-bandymas');
+
+  // 5. Valymas vienu mygtuku
+  await page.click('[data-act="tab"][data-tab="test"]');
+  assert.equal((await page.locator('#test-players-count').innerText()).trim(), '4');
+  assert.equal((await page.locator('#test-published-count').innerText()).trim(), '1');
+  await page.click('[data-act="delete-test-data"]');
+  await page.locator('.notice.success', { hasText: 'Bandymo duomenys ištrinti' }).waitFor();
+  assert.equal(owner(`select count(*) from public.players where is_test;`), '0');
+  assert.equal(owner(`select count(*) from public.seasons where is_test;`), '0');
+  assert.equal(owner(`select count(*) from public.tournaments where season_id = 'bandymas';`), '0');
+  assert.equal(owner(`select count(*) from public.audit_log where action = 'delete_test_data';`), '1', 'audito žurnalas išlieka');
+  assert.deepEqual(strip(await publicDataset()), officialBefore, 'po valymo viešas atsakymas identiškas ankstesniam');
+  await pub.reload(); // lankytojas perkrauna puslapį ir gauna naujus duomenis
+  await pub.locator('.rrow').first().waitFor();
+  assert.equal(await pub.locator('#test-banner').count(), 0, 'bandomojo sezono nebėra');
+  assert.equal((await publicRows(pub)).length, 8);
+  await anon.close();
+  await context.close();
+});
+
+test('Vadovo 12 žingsnio konsolės patikra (kodas paimtas tiesiai iš docs/SUPABASE-DIEGIMAS.md) duoda tikėtą rezultatą', { skip }, async () => {
+  const doc = readFileSync(join(root, 'docs', 'SUPABASE-DIEGIMAS.md'), 'utf8');
+  const code = /```js\n(const \{ RUNTIME: R \}[\s\S]*?)```/.exec(doc)[1];
+  const before = owner('select (select count(*) from public.players) || \'|\' || (select count(*) from public.audit_log) || \'|\' || (select count(*) from public.seasons);');
+  for (const mode of ['anon-jwt', 'publishable']) {
+    const srv = await startLocalSupabase({ pg: { host: HOST, port: PORT, user: USER }, database: DB, staticRoot: root, users: [ADMIN], keyMode: mode });
+    try {
+      const context = await browser.newContext();
+      const page = await newPage(context);
+      const lines = [];
+      page.on('console', (m) => lines.push(m.text()));
+      await page.goto(`${srv.siteUrl}reitingai.html`);
+      await page.locator('#app').waitFor();
+      await page.evaluate(async (src) => {
+        const AsyncFunction = Object.getPrototypeOf(async () => {}).constructor;
+        await new AsyncFunction(src.replace("import('./ranking/runtime-config.js')", `import('${location.origin}${location.pathname.replace(/[^/]*$/, '')}ranking/runtime-config.js')`))();
+      }, code);
+      const status = (needle) => Number((lines.find((l) => l.includes(needle)) || '').split('→')[1]);
+      assert.ok([401, 403].includes(status('POST /rest/v1/players')), `${mode}: anoniminis įrašymas atmestas: ${lines.join(' | ')}`);
+      assert.ok([401, 403].includes(status('GET /rest/v1/players')), `${mode}: anoniminis skaitymas atmestas`);
+      assert.ok([401, 403].includes(status('admin_delete_test_data')), `${mode}: admin funkcija atmesta`);
+      assert.equal(status('public_ranking_data'), 200, `${mode}: viešas skaitymas veikia`);
+      await context.close();
+    } finally { await srv.close(); }
+  }
+  assert.equal(owner('select (select count(*) from public.players) || \'|\' || (select count(*) from public.audit_log) || \'|\' || (select count(*) from public.seasons);'), before, 'patikra nieko nepakeitė');
+});
+
 test('Telefono dydžio ekranas: viešas reitingas ir administravimas be horizontalios slinkties', { skip }, async () => {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   const page = await newPage(context);
@@ -548,6 +760,10 @@ test('Telefono dydžio ekranas: viešas reitingas ir administravimas be horizont
   await page.locator('#results-table tbody tr').first().waitFor();
   assert.ok(await overflow() <= 1, `administravimas (rezultatai) telefone netelpa: ${(await offenders()).join('; ')}`);
   await shot(page, 'admin-rezultatai-telefonas');
+  await page.click('[data-act="tab"][data-tab="test"]');
+  await page.locator('#test-panel').waitFor();
+  assert.ok(await overflow() <= 1, `administravimas (bandymas) telefone netelpa: ${(await offenders()).join('; ')}`);
+  await shot(page, 'admin-bandymas-telefonas');
   await context.close();
 });
 

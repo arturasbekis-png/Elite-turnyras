@@ -23,6 +23,12 @@ export const EMPTY_OFFICIAL = ['Oficialių rezultatų dar nėra', 'Reitingas ats
 
 export const UNCONFIGURED = ['Reitingai dar neprijungti', 'Reitingų duomenų bazė dar nesukonfigūruota, todėl oficialių rezultatų parodyti negalime. Kalendorių (skiltis „Turnyrų rezultatai“) ir taisykles galite peržiūrėti.'];
 
+/** Nuostatų problema: tuščia konfigūracija – paprastas pranešimas; neteisingos / privilegijuotos reikšmės – konkreti priežastis. */
+export function renderSetupProblem(problem) {
+  if (!problem || problem.status === 'missing') return renderEmpty(...UNCONFIGURED);
+  return `<div class="state state-error" role="alert" data-setup="${esc(problem.status)}"><p><strong>${esc(problem.title)}</strong></p><p>${esc(problem.text)}</p><p class="muted">Ši žinutė skirta svetainės savininkui; lankytojams reitingai bus rodomi, kai nuostatos bus pataisytos.</p></div>`;
+}
+
 // ───────────────────────── Bendri elementai ─────────────────────────
 
 function posCell(row) {

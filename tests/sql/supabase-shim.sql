@@ -7,7 +7,7 @@ begin
 end $$;
 
 create schema if not exists auth;
-create table if not exists auth.users (id uuid primary key default gen_random_uuid(), email text);
+create table if not exists auth.users (id uuid primary key default gen_random_uuid(), email text, email_confirmed_at timestamptz);
 
 create or replace function auth.jwt() returns jsonb language sql stable as $$
   select coalesce(nullif(current_setting('request.jwt.claims', true), ''), '{}')::jsonb

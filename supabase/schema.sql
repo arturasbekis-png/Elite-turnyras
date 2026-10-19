@@ -63,6 +63,14 @@ create table if not exists public.players (
 alter table public.players add column if not exists first_name text;
 alter table public.players add column if not exists last_name text;
 
+-- Bandymo režimas: sezonai ir žaidėjai gali būti pažymėti kaip BANDOMIEJI. Tik jie (ir niekas kitas) pašalinami
+-- funkcija admin_delete_test_data(). Bandomasis sezonas negali būti „dabartinis“, o bandomųjų žaidėjų
+-- požymio vėliau pakeisti negalima (tik nustatomas kuriant žaidėją).
+alter table public.seasons add column if not exists is_test boolean not null default false;
+alter table public.players add column if not exists is_test boolean not null default false;
+alter table public.seasons drop constraint if exists seasons_test_not_current;
+alter table public.seasons add constraint seasons_test_not_current check (not (is_test and is_current));
+
 create or replace function public._players_sync_name() returns trigger
 language plpgsql as $$
 begin
@@ -132,12 +140,12 @@ create trigger audit_log_no_change before update or delete on public.audit_log
 -- ───────────────────────── Pagalbinės funkcijos ─────────────────────────
 
 create or replace function public.is_admin() returns boolean
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select auth.uid() is not null and exists (select 1 from public.admins a where a.user_id = auth.uid())
 $$;
 
 create or replace function public.assert_admin() returns void
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 begin
   if not public.is_admin() then
     raise exception 'not_authorized' using errcode = '42501';
@@ -145,14 +153,14 @@ begin
 end $$;
 
 create or replace function public._log_audit(p_action text, p_tournament_id text, p_reason text, p_before jsonb, p_after jsonb)
-returns void language plpgsql security definer set search_path = public as $$
+returns void language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   insert into public.audit_log (actor, actor_email, action, tournament_id, reason, before, after)
   values (auth.uid(), auth.jwt() ->> 'email', p_action, p_tournament_id, p_reason, p_before, p_after);
 end $$;
 
 create or replace function public._tournament_snapshot(p_tournament_id text) returns jsonb
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', p.id, 'teamName', p.team_name, 'position', p.final_position,
     'playerIds', (select coalesce(jsonb_agg(pp.player_id order by pp.slot), '[]'::jsonb)
@@ -163,7 +171,7 @@ $$;
 
 -- Rezultatų validacija (ta pati logika kaip ranking/engine.js validateResults).
 create or replace function public._validate_results(p_tournament_id text) returns jsonb
-language plpgsql stable security definer set search_path = public as $$
+language plpgsql stable security definer set search_path = public, pg_temp as $$
 declare
   t public.tournaments%rowtype;
   n integer;
@@ -211,7 +219,7 @@ end $$;
 
 -- Vidinė funkcija: pakeičia turnyro dalyvavimo įrašus. Nėra prieinama klientams.
 create or replace function public._apply_entries(p_tournament_id text, p_entries jsonb) returns integer
-language plpgsql security definer set search_path = public as $$
+language plpgsql security definer set search_path = public, pg_temp as $$
 declare
   e jsonb;
   new_id uuid;
@@ -247,6 +255,12 @@ begin
       if exists (select 1 from public.players where id = pid and merged_into is not null) then
         raise exception 'merged_player';
       end if;
+      -- Bandomasis žaidėjas negali patekti į OFICIALŲ turnyrą (net juodraštyje).
+      if exists (select 1 from public.players where id = pid and is_test)
+         and not coalesce((select s.is_test from public.tournaments t join public.seasons s on s.id = t.season_id
+                           where t.id = p_tournament_id), false) then
+        raise exception 'test_player_in_official';
+      end if;
       begin
         insert into public.participation_players (participation_id, tournament_id, player_id, slot)
         values (new_id, p_tournament_id, pid, slot_no);
@@ -264,12 +278,12 @@ end $$;
 -- Vienintelė anoniminiams lankytojams prieinama funkcija. Grąžina tik PATVIRTINTŲ turnyrų rezultatus.
 
 create or replace function public.public_ranking_data() returns jsonb
-language sql stable security definer set search_path = public as $$
+language sql stable security definer set search_path = public, pg_temp as $$
   select jsonb_build_object(
     'generatedAt', now(),
     'seasons', coalesce((
       select jsonb_agg(jsonb_build_object('id', s.id, 'label', s.label, 'isCurrent', s.is_current,
-                                          'scoringVersion', s.scoring_version) order by s.id)
+                                          'scoringVersion', s.scoring_version, 'isTest', s.is_test) order by s.id)
       from public.seasons s), '[]'::jsonb),
     'tournaments', coalesce((
       select jsonb_agg(jsonb_build_object(
@@ -301,7 +315,7 @@ $$;
 -- ───────────────────────── Administratoriaus funkcijos ─────────────────────────
 
 create or replace function public.admin_save_results(p_tournament_id text, p_entries jsonb, p_status text default 'draft')
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare t public.tournaments%rowtype; cnt integer;
 begin
   perform public.assert_admin();
@@ -316,7 +330,7 @@ begin
 end $$;
 
 create or replace function public.admin_finalize_tournament(p_tournament_id text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare t public.tournaments%rowtype; errs jsonb; snap jsonb;
 begin
   perform public.assert_admin();
@@ -338,7 +352,7 @@ begin
 end $$;
 
 create or replace function public.admin_correct_results(p_tournament_id text, p_entries jsonb, p_reason text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare t public.tournaments%rowtype; errs jsonb; before_snap jsonb; rev integer;
 begin
   perform public.assert_admin();
@@ -360,7 +374,7 @@ begin
 end $$;
 
 create or replace function public.admin_set_tournament_status(p_tournament_id text, p_status text)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare t public.tournaments%rowtype;
 begin
   perform public.assert_admin();
@@ -374,7 +388,7 @@ begin
 end $$;
 
 create or replace function public.admin_merge_players(p_keep uuid, p_drop uuid, p_reason text default null)
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 declare keep_row public.players%rowtype; drop_row public.players%rowtype; conflicts text;
 begin
   perform public.assert_admin();
@@ -383,6 +397,8 @@ begin
   select * into drop_row from public.players where id = p_drop for update;
   if keep_row.id is null or drop_row.id is null then raise exception 'player_not_found'; end if;
   if keep_row.merged_into is not null or drop_row.merged_into is not null then raise exception 'already_merged'; end if;
+  -- Bandomojo ir oficialaus žaidėjo jungti negalima (kitaip bandymo duomenų valymas paliestų oficialius duomenis).
+  if keep_row.is_test <> drop_row.is_test then raise exception 'merge_test_mismatch'; end if;
   select string_agg(t.name, ', ') into conflicts
     from public.participation_players a
     join public.participation_players b on a.tournament_id = b.tournament_id
@@ -400,10 +416,11 @@ begin
 end $$;
 
 create or replace function public.admin_upsert_season(p_id text, p_label text, p_is_current boolean, p_scoring_version text default 'v1')
-returns jsonb language plpgsql security definer set search_path = public as $$
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
 begin
   perform public.assert_admin();
   if p_id is null or btrim(p_id) = '' or p_label is null or btrim(p_label) = '' then raise exception 'invalid_season'; end if;
+  if exists (select 1 from public.seasons where id = btrim(p_id) and is_test) then raise exception 'test_season_locked'; end if;
   if p_is_current then
     update public.seasons set is_current = false where is_current and id <> p_id;
   end if;
@@ -418,12 +435,19 @@ end $$;
 create or replace function public.admin_upsert_tournament(
   p_id text, p_season_id text, p_event_type text, p_number integer, p_name text,
   p_event_date date, p_start_time time default '11:00', p_allow_ties boolean default false)
-returns jsonb language plpgsql security definer set search_path = public as $$
-declare existing public.tournaments%rowtype;
+returns jsonb language plpgsql security definer set search_path = public, pg_temp as $$
+declare existing public.tournaments%rowtype; was_found boolean; target_test boolean; current_test boolean;
 begin
   perform public.assert_admin();
   select * into existing from public.tournaments where id = p_id for update;
-  if found and existing.status = 'finalized' then raise exception 'tournament_finalized'; end if;
+  was_found := found;
+  if was_found and existing.status = 'finalized' then raise exception 'tournament_finalized'; end if;
+  -- Turnyro negalima perkelti tarp oficialaus ir bandomojo sezono (apsauga nuo bandymo duomenų valymo klaidų).
+  select coalesce((select is_test from public.seasons where id = p_season_id), false) into target_test;
+  if was_found then
+    select coalesce((select is_test from public.seasons where id = existing.season_id), false) into current_test;
+    if current_test <> target_test then raise exception 'test_season_locked'; end if;
+  end if;
   insert into public.tournaments (id, season_id, event_type, number, name, event_date, start_time, allow_ties)
   values (p_id, p_season_id, p_event_type, p_number, p_name, p_event_date, p_start_time, p_allow_ties)
   on conflict (id) do update
@@ -432,6 +456,72 @@ begin
         allow_ties = excluded.allow_ties, updated_at = now();
   perform public._log_audit('upsert_tournament', p_id, null, null, jsonb_build_object('name', p_name, 'date', p_event_date));
   return jsonb_build_object('id', p_id);
+end $$;
+
+-- ───────────────────────── Bandymo režimas ─────────────────────────
+-- Leidžia saugiai išbandyti visą kelią (žaidėjai → komandos → paskelbimas → viešas reitingas) NELIESIANT oficialių
+-- duomenų, o paskui pašalinti VISĄ bandymą viena komanda. Valymas liečia tik eilutes su is_test = true
+-- (bandomasis sezonas „bandymas“, jo turnyrai ir žaidėjai, sukurti su bandomojo žaidėjo požymiu).
+-- Oficialaus sezono turnyrų ir žaidėjų ši funkcija niekada netrina. Audito žurnalas (nekeičiamas) išlieka.
+
+create or replace function public.admin_create_test_season() returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare d date := current_date;
+begin
+  perform public.assert_admin();
+  insert into public.seasons (id, label, is_current, scoring_version, is_test)
+  values ('bandymas', 'BANDOMASIS SEZONAS (neoficialus)', false, 'v1', true)
+  on conflict (id) do nothing;
+  if not exists (select 1 from public.seasons where id = 'bandymas' and is_test) then
+    raise exception 'invalid_season';
+  end if;
+  insert into public.tournaments (id, season_id, event_type, number, name, event_date, start_time)
+  values ('bandymas-elite-1', 'bandymas', 'elite', 1, 'BANDOMASIS ELITE #1', d, '11:00'),
+         ('bandymas-challenge-1', 'bandymas', 'challenge', 1, 'BANDOMASIS CHALLENGE #1', d, '11:00'),
+         ('bandymas-future-1', 'bandymas', 'future', 1, 'BANDOMASIS FUTURE #1', d, '11:00')
+  on conflict (id) do nothing;
+  perform public._log_audit('create_test_season', null, null, null, jsonb_build_object('season', 'bandymas'));
+  return jsonb_build_object('seasonId', 'bandymas');
+end $$;
+
+create or replace function public.admin_delete_test_data() returns jsonb
+language plpgsql security definer set search_path = public, pg_temp as $$
+declare
+  blocking text;
+  n_parts integer; n_tournaments integer; n_seasons integer; n_players integer;
+begin
+  perform public.assert_admin();
+
+  -- Sustojame, jei bandomasis žaidėjas dalyvauja OFICIALIAME turnyre: jo trynimas sugadintų oficialius duomenis.
+  select string_agg(distinct pl.full_name, ', ') into blocking
+    from public.players pl
+    join public.participation_players pp on pp.player_id = pl.id
+    join public.tournaments t on t.id = pp.tournament_id
+    join public.seasons s on s.id = t.season_id
+   where pl.is_test and not s.is_test;
+  if blocking is not null then
+    raise exception 'test_player_in_real_tournament' using detail = blocking;
+  end if;
+  -- ... arba jei oficialus žaidėjas buvo sujungtas į bandomąjį įrašą.
+  if exists (select 1 from public.players a join public.players b on a.merged_into = b.id where b.is_test and not a.is_test) then
+    raise exception 'merge_test_mismatch';
+  end if;
+
+  select count(*) into n_parts from public.participations p
+    join public.tournaments t on t.id = p.tournament_id join public.seasons s on s.id = t.season_id where s.is_test;
+  select count(*) into n_tournaments from public.tournaments t join public.seasons s on s.id = t.season_id where s.is_test;
+  select count(*) into n_seasons from public.seasons where is_test;
+  select count(*) into n_players from public.players where is_test;
+
+  delete from public.participations
+   where tournament_id in (select t.id from public.tournaments t join public.seasons s on s.id = t.season_id where s.is_test);
+  delete from public.tournaments where season_id in (select id from public.seasons where is_test);
+  delete from public.seasons where is_test;
+  delete from public.players where is_test;
+
+  perform public._log_audit('delete_test_data', null, null, null,
+    jsonb_build_object('seasons', n_seasons, 'tournaments', n_tournaments, 'teams', n_parts, 'players', n_players));
+  return jsonb_build_object('seasons', n_seasons, 'tournaments', n_tournaments, 'teams', n_parts, 'players', n_players);
 end $$;
 
 -- ───────────────────────── RLS ir teisės ─────────────────────────
@@ -448,6 +538,7 @@ alter table public.audit_log enable row level security;
 revoke all on public.admins, public.seasons, public.tournaments, public.players,
   public.participations, public.participation_players, public.audit_log from anon, authenticated;
 revoke all on all functions in schema public from public, anon, authenticated;
+revoke all on all sequences in schema public from anon, authenticated;
 
 -- Skaitymas: tik administratoriams (lankytojai naudoja public_ranking_data()).
 drop policy if exists admins_read on public.admins;
@@ -475,7 +566,7 @@ drop policy if exists players_update on public.players;
 create policy players_update on public.players for update to authenticated using (public.is_admin()) with check (public.is_admin());
 -- full_name klientas rašyti negali: jį apskaičiuoja trigeris iš vardo ir pavardės.
 revoke insert, update on public.players from authenticated;
-grant insert (first_name, last_name, gender, bio) on public.players to authenticated;
+grant insert (first_name, last_name, gender, bio, is_test) on public.players to authenticated;
 grant update (first_name, last_name, gender, bio, is_active) on public.players to authenticated;
 
 -- Funkcijų teisės.
@@ -488,4 +579,6 @@ grant execute on function public.admin_set_tournament_status(text, text) to auth
 grant execute on function public.admin_merge_players(uuid, uuid, text) to authenticated;
 grant execute on function public.admin_upsert_season(text, text, boolean, text) to authenticated;
 grant execute on function public.admin_upsert_tournament(text, text, text, integer, text, date, time, boolean) to authenticated;
+grant execute on function public.admin_create_test_season() to authenticated;
+grant execute on function public.admin_delete_test_data() to authenticated;
 -- _apply_entries, _validate_results, _log_audit, _tournament_snapshot, assert_admin lieka be klientų teisių.

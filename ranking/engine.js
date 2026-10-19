@@ -419,6 +419,13 @@ export function tournamentView(dataset, tournamentId) {
  * pagal tas pačias taisykles ir rodomi atskirai nuo dabartinio sezono lentelės.
  */
 export function computeAllTime(dataset) {
+  // Bandomieji sezonai (bandymo režimas) į istorinę statistiką niekada neįtraukiami.
+  const testSeasons = new Set((dataset.seasons || []).filter((s) => s.isTest).map((s) => s.id));
+  if (testSeasons.size) {
+    const keep = (dataset.tournaments || []).filter((t) => !testSeasons.has(t.seasonId));
+    const ids = new Set(keep.map((t) => t.id));
+    dataset = { ...dataset, tournaments: keep, participations: (dataset.participations || []).filter((p) => ids.has(p.tournamentId)) };
+  }
   const { results } = buildPlayerResults(dataset, {});
   const aggs = aggregate(results);
   const rows = overallRows(aggs, dataset.players);

@@ -348,6 +348,157 @@ test('Žaidėjų sujungimas: istorija ir taškai išlieka, konfliktai atmetami',
   assert.equal(asAdmin(`select public.admin_merge_players('${ids.A}', '${ids.Dup}');`).ok, false, 'jau sujungto įrašo kartotinai sujungti negalima');
 });
 
+// ───────── Teisių auditas (struktūra, ne tik elgesys) ─────────
+test('Teisių auditas: RLS visose lentelėse, anon/authenticated teisės minimalios, funkcijos užrakintos', { skip }, () => {
+  const tables = ['admins', 'seasons', 'tournaments', 'players', 'participations', 'participation_players', 'audit_log'];
+  assert.equal(asOwner(`select count(*) from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r';`).out, String(tables.length), 'public schemoje tik žinomos lentelės');
+  assert.equal(asOwner(`select coalesce(string_agg(relname, ','), '') from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' and not c.relrowsecurity;`).out, '', 'RLS įjungtas visose lentelėse');
+
+  const priv = (role, table, p) => asOwner(`select has_table_privilege('${role}', 'public.${table}', '${p}');`).out;
+  for (const t of tables) {
+    assert.equal(priv('anon', t, 'select,insert,update,delete,truncate,references,trigger'), 'f', `anon neturi jokių teisių: ${t}`);
+    assert.equal(priv('authenticated', t, 'delete,truncate,references,trigger'), 'f', `authenticated negali trinti: ${t}`);
+    assert.equal(priv('authenticated', t, 'select'), 't', `authenticated gali skaityti (RLS: tik adminai): ${t}`);
+    if (t !== 'players') assert.equal(priv('authenticated', t, 'insert,update'), 'f', `tiesioginio rašymo nėra: ${t}`);
+  }
+  const col = (c, p) => asOwner(`select has_column_privilege('authenticated', 'public.players', '${c}', '${p}');`).out;
+  assert.equal(col('first_name', 'insert'), 't');
+  assert.equal(col('is_test', 'insert'), 't');
+  assert.equal(col('is_test', 'update'), 'f', 'bandomojo požymio vėliau keisti negalima');
+  for (const c of ['id', 'full_name', 'merged_into', 'created_at']) {
+    assert.equal(col(c, 'insert'), 'f', `${c}: įterpti negalima`);
+    assert.equal(col(c, 'update'), 'f', `${c}: keisti negalima`);
+  }
+
+  const seq = asOwner(`select pg_get_serial_sequence('public.audit_log', 'id');`).out;
+  for (const role of ['anon', 'authenticated']) assert.equal(asOwner(`select has_sequence_privilege('${role}', '${seq}', 'usage,select,update');`).out, 'f', `${role}: sekos teisių nėra`);
+
+  const anonFns = asOwner(`select coalesce(string_agg(p.proname, ',' order by p.proname), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('anon', p.oid, 'execute');`).out;
+  assert.equal(anonFns, 'public_ranking_data', 'anoniminis lankytojas gali kviesti tik viešą skaitymą');
+  const authExtra = asOwner(`select coalesce(string_agg(p.proname, ','), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prokind = 'f' and has_function_privilege('authenticated', p.oid, 'execute') and p.proname !~ '^(admin_|is_admin$|public_ranking_data$)';`).out;
+  assert.equal(authExtra, '', 'vidinės funkcijos klientams neprieinamos');
+  assert.equal(asOwner(`select count(*) from pg_proc p join pg_namespace n on n.oid = p.pronamespace, lateral aclexplode(coalesce(p.proacl, acldefault('f', p.proowner))) a where n.nspname = 'public' and p.prokind = 'f' and a.grantee = 0 and a.privilege_type = 'EXECUTE';`).out, '0', 'PUBLIC rolei funkcijų vykdymas neleidžiamas');
+  assert.equal(asOwner(`select coalesce(string_agg(p.proname, ','), '') from pg_proc p join pg_namespace n on n.oid = p.pronamespace where n.nspname = 'public' and p.prosecdef and not exists (select 1 from unnest(coalesce(p.proconfig, '{}'::text[])) c where c like 'search_path=%pg_temp%');`).out, '', 'visos SECURITY DEFINER funkcijos turi užfiksuotą search_path (su pg_temp gale)');
+});
+
+test('Lankytojas negali tapti administratoriumi nei tiesiogiai, nei per funkcijas', { skip }, () => {
+  for (const who of [asUser, asAnon]) {
+    assert.equal(who(`insert into public.admins (user_id) values ('${USER_ID}');`).ok, false);
+    assert.equal(who(`update public.admins set note = 'x';`).ok, false);
+    assert.equal(who(`delete from public.admins;`).ok, false);
+  }
+  assert.equal(asUser(`insert into public.admins (user_id) values ('${USER_ID}');`).ok, false);
+  assert.equal(asOwner(`select count(*) from public.admins where user_id = '${USER_ID}';`).out, '0');
+  assert.equal(asUser('select public.is_admin();').out, 'f');
+  // net administratorius negali pridėti kito administratoriaus per API – tik savininkas SQL Editor'iuje
+  assert.equal(asAdmin(`insert into public.admins (user_id) values ('${USER_ID}');`).ok, false);
+});
+
+test('make-admin.sql įgalioja tik PATVIRTINTO el. pašto naudotoją ir yra kartojamas saugiai', { skip }, () => {
+  const script = readFileSync(join(root, 'supabase', 'make-admin.sql'), 'utf8');
+  assert.match(script, /PAKEISKITE@JUSU-PASTAS\.lt/);
+  assert.ok(asOwner(`insert into auth.users (id, email, email_confirmed_at) values ('33333333-3333-3333-3333-333333333333', 'patvirtintas@example.test', now()), ('44444444-4444-4444-4444-444444444444', 'nepatvirtintas@example.test', null);`).ok);
+  const withEmail = (email) => script.replace('PAKEISKITE@JUSU-PASTAS.lt', email);
+  assert.ok(asOwner(withEmail('Nepatvirtintas@Example.Test')).ok);
+  assert.equal(asOwner(`select count(*) from public.admins where user_id = '44444444-4444-4444-4444-444444444444';`).out, '0', 'nepatvirtintas el. paštas neįgaliojamas');
+  assert.ok(asOwner(withEmail('Patvirtintas@Example.Test')).ok, 'el. paštas nejautrus raidžių dydžiui');
+  assert.ok(asOwner(withEmail('patvirtintas@example.test')).ok, 'pakartotinis paleidimas nieko nesugadina');
+  assert.equal(asOwner(`select count(*) from public.admins where user_id = '33333333-3333-3333-3333-333333333333';`).out, '1');
+  assert.equal(asOwner(withEmail('nera-tokio@example.test')).ok, true, 'neegzistuojantis el. paštas – tiesiog nieko neįgalioja');
+  assert.equal(asOwner(`select count(*) from public.admins;`).out, '2', 'testinis administratorius + patvirtintas naudotojas');
+  assert.ok(asOwner(`delete from public.admins where user_id = '33333333-3333-3333-3333-333333333333'; delete from auth.users where id in ('33333333-3333-3333-3333-333333333333', '44444444-4444-4444-4444-444444444444');`).ok);
+});
+
+// ───────── Bandymo režimas (saugus patikrinimas realiame projekte) ─────────
+test('Bandymo režimas: sukūrimas, oficialūs duomenys nepaliečiami, valymas grąžina tiksliai ankstesnę būseną', { skip }, () => {
+  const E3 = '2026-2027-elite-3';
+  const T = 'bandymas-elite-1';
+  const officialBefore = publicJson();
+  const rankingBefore = rankings().overall.map((r) => [r.name, r.points, r.position]);
+  const countOwner = (sql) => asOwner(sql).out;
+  const playersBefore = countOwner(`select count(*) from public.players;`);
+
+  // Teisės: tik administratorius
+  for (const fn of ['admin_create_test_season()', 'admin_delete_test_data()']) {
+    const u = asUser(`select public.${fn};`);
+    assert.equal(u.ok, false, fn); assert.match(u.err, /not_authorized/, fn);
+    const a = asAnon(`select public.${fn};`);
+    assert.equal(a.ok, false, fn); assert.match(a.err, /permission denied/i, fn);
+  }
+  assert.equal(countOwner(`select count(*) from public.seasons where is_test;`), '0');
+
+  // Sukūrimas (kartojamas saugiai)
+  assert.ok(asAdmin(`select public.admin_create_test_season()::text;`).ok);
+  assert.ok(asAdmin(`select public.admin_create_test_season()::text;`).ok);
+  assert.equal(countOwner(`select count(*) from public.tournaments where season_id = 'bandymas';`), '3');
+  const withTest = publicJson();
+  assert.deepEqual(withTest.seasons.map((x) => [x.id, x.isTest]).sort(), [['2026-2027', false], ['bandymas', true]]);
+  assert.equal(withTest.tournaments.length, 22);
+  assert.ok(withTest.seasons.every((x) => !(x.isTest && x.isCurrent)), 'bandomasis sezonas niekada nėra dabartinis');
+  assert.deepEqual(rankings().overall.map((r) => [r.name, r.points, r.position]), rankingBefore, 'oficialus reitingas nepasikeitė');
+
+  // Apsaugos nuo painiavos tarp bandomųjų ir oficialių duomenų
+  const lockedSeason = asAdmin(`select public.admin_upsert_season('bandymas', 'Pakeista', true);`);
+  assert.equal(lockedSeason.ok, false); assert.match(lockedSeason.err, /test_season_locked/);
+  const moved = asAdmin(`select public.admin_upsert_tournament('${E3}', 'bandymas', 'elite', 3, 'ELITE #3', '2026-11-29');`);
+  assert.equal(moved.ok, false); assert.match(moved.err, /test_season_locked/, 'oficialaus turnyro į bandomąjį sezoną perkelti negalima');
+  assert.equal(countOwner(`select season_id from public.tournaments where id = '${E3}';`), SEASON);
+
+  // Bandomieji žaidėjai: tik administratorius, požymis nustatomas tik kuriant
+  assert.equal(asUser(`insert into public.players (first_name, last_name, is_test) values ('Svetimas', 'Bandymas', true);`).ok, false);
+  const created = asAdmin(`insert into public.players (first_name, last_name, is_test) values ('Bandymas', 'Vienas', true), ('Bandymas', 'Du', true), ('Bandymas', 'Trys', true), ('Bandymas', 'Keturi', true);`);
+  assert.ok(created.ok, created.err);
+  asOwner(`select full_name || '=' || id from public.players where is_test order by full_name;`).out.split('\n').forEach((line, i) => { const [, id] = line.split('='); ids[`T${i + 1}`] = id; });
+  // full_name tvarka: Bandymas Du, Keturi, Trys, Vienas
+  assert.equal(Object.keys(ids).filter((k) => /^T\d$/.test(k)).length, 4);
+  const flip = asAdmin(`update public.players set is_test = true where id = '${ids.A}';`);
+  assert.equal(flip.ok, false); assert.match(flip.err, /permission denied/i, 'oficialaus žaidėjo paversti bandomuoju negalima');
+  const unflip = asAdmin(`update public.players set is_test = false where id = '${ids.T1}';`);
+  assert.equal(unflip.ok, false, 'bandomojo žaidėjo paversti oficialiu negalima');
+
+  // Bandomasis žaidėjas negali patekti į oficialų turnyrą, o oficialus tinka bandomajame
+  const intoOfficial = save(E3, [[1, ['T1', 'T2']], [2, ['T3', 'T4']]]);
+  assert.equal(intoOfficial.ok, false); assert.match(intoOfficial.err, /test_player_in_official/);
+  assert.equal(countOwner(`select count(*) from public.participations where tournament_id = '${E3}';`), '0');
+  const mix = asAdmin(`select public.admin_merge_players('${ids.A}', '${ids.T1}', 'bandymas');`);
+  assert.equal(mix.ok, false); assert.match(mix.err, /merge_test_mismatch/);
+
+  // Juodraštis bandomajame turnyre viešai nematomas; paskelbus – matomas tik bandomajame sezone
+  assert.ok(save(T, [[1, ['T1', 'T2']], [2, ['T3', 'T4']]]).ok);
+  assert.equal(publicJson().participations.length, officialBefore.participations.length, 'juodraštis neviešinamas');
+  assert.ok(asAdmin(`select public.admin_finalize_tournament('${T}')::text;`).ok);
+  const published = publicJson();
+  assert.equal(published.participations.length, officialBefore.participations.length + 2);
+  const testRank = computeRankings(normalizePublicData(published), { seasonId: 'bandymas' }).overall;
+  assert.deepEqual(testRank.slice(0, 2).map((r) => r.points), [50, 50], 'abu poros nariai gauna pilnus taškus');
+  assert.equal(testRank.length, 4);
+  assert.deepEqual(rankings().overall.map((r) => [r.name, r.points, r.position]), rankingBefore, 'oficialaus sezono reitingas nepasikeitė');
+
+  // Valymas sustoja, jei bandomasis žaidėjas kažkaip atsidūrė oficialiame turnyre (tik tiesioginis DB įrašas gali tai padaryti)
+  assert.ok(asOwner(`insert into public.participations (id, tournament_id, final_position) values ('00000000-0000-0000-0000-0000000000aa', '${E3}', 1);
+    insert into public.participation_players (participation_id, tournament_id, player_id, slot) values ('00000000-0000-0000-0000-0000000000aa', '${E3}', '${ids.T1}', 1);`).ok);
+  const blocked = asAdmin(`select public.admin_delete_test_data();`);
+  assert.equal(blocked.ok, false); assert.match(blocked.err, /test_player_in_real_tournament/);
+  assert.equal(countOwner(`select count(*) from public.players where is_test;`), '4', 'nesėkmė nieko neištrynė');
+  assert.equal(countOwner(`select count(*) from public.seasons where is_test;`), '1');
+  assert.ok(asOwner(`delete from public.participations where id = '00000000-0000-0000-0000-0000000000aa';`).ok);
+
+  // Valymas: tik administratorius; ištrina tik bandomuosius įrašus
+  assert.equal(asUser(`select public.admin_delete_test_data();`).ok, false);
+  const del = asAdmin(`select public.admin_delete_test_data()::text;`);
+  assert.ok(del.ok, del.err);
+  assert.deepEqual(JSON.parse(del.out), { seasons: 1, tournaments: 3, teams: 2, players: 4 });
+  assert.deepEqual(publicJson(), officialBefore, 'po valymo viešas atsakymas identiškas ankstesniam');
+  assert.deepEqual(rankings().overall.map((r) => [r.name, r.points, r.position]), rankingBefore);
+  assert.equal(countOwner(`select count(*) from public.players where is_test;`), '0');
+  assert.equal(countOwner(`select count(*) from public.players;`), playersBefore, 'oficialūs žaidėjai nepaliesti');
+  assert.deepEqual(JSON.parse(asAdmin(`select public.admin_delete_test_data()::text;`).out), { seasons: 0, tournaments: 0, teams: 0, players: 0 }, 'antras valymas – nieko nedaro');
+
+  // Auditas išlieka (nekeičiamas)
+  assert.equal(countOwner(`select count(*) from public.audit_log where action = 'create_test_season';`), '2');
+  assert.equal(countOwner(`select count(*) from public.audit_log where action = 'delete_test_data';`), '2');
+});
+
 // ───────── TEST K — išlikimas ir nuoseklumas ─────────
 test('K: skirtingi lankytojai mato tą patį reitingą', { skip }, () => {
   const visitor1 = publicJson(asAnon);

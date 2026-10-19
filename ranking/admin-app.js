@@ -20,13 +20,14 @@ try { storage = window.sessionStorage; } catch (_) { /* privatus režimas */ }
 
 const ui = {
   screen: 'loading', tab: 'players', loginError: '', editingPlayer: null, showMerged: false, playerQuery: '',
-  newFirst: '', newLast: '', newGender: '', backend: null, client: null, ctl: null,
+  newFirst: '', newLast: '', newGender: '', newTest: false, backend: null, client: null, ctl: null,
 };
 
-const TABS = [['players', 'ŽAIDĖJAI'], ['results', 'REZULTATŲ SUVEDIMAS'], ['seasons', 'Sezonai ir turnyrai'], ['audit', 'Auditas'], ['export', 'Eksportas']];
+const TABS = [['players', 'ŽAIDĖJAI'], ['results', 'REZULTATŲ SUVEDIMAS'], ['seasons', 'Sezonai ir turnyrai'], ['test', 'BANDYMAS'], ['audit', 'Auditas'], ['export', 'Eksportas']];
 const AUDIT_LABELS = {
   save_draft: 'Išsaugotas juodraštis', finalize: 'Paskelbti rezultatai', correct: 'Pataisyti rezultatai', merge_players: 'Sujungti žaidėjai',
   set_status: 'Pakeistas statusas', upsert_season: 'Sezonas išsaugotas', upsert_tournament: 'Turnyras išsaugotas',
+  create_test_season: 'Sukurtas bandomasis sezonas', delete_test_data: 'Ištrinti bandymo duomenys',
 };
 
 // ───────────────────────── Paleidimas ─────────────────────────
@@ -57,7 +58,15 @@ async function start() {
 }
 
 function attachController() {
-  ui.ctl = createAdminController(ui.backend, { onChange: render });
+  ui.ctl = createAdminController(ui.backend, { onChange: render, onAuthLost: handleAuthLost });
+}
+
+/** Sesija nebegalioja (pasibaigė / atšaukta): grąžiname į prisijungimo formą su paaiškinimu. */
+function handleAuthLost() {
+  if (demo) return;
+  ui.screen = 'login';
+  ui.loginError = 'Prisijungimo galiojimas baigėsi. Prisijunkite iš naujo. Neišsaugoti pakeitimai šiame puslapyje gali būti prarasti.';
+  render();
 }
 
 async function verifyAdmin() {
@@ -79,12 +88,16 @@ function render() {
 }
 
 function renderUnconfigured() {
-  return `<div class="card"><h2>Duomenų bazė dar nesukonfigūruota</h2>
-    <p>Administravimas veiks, kai bus prijungta Supabase duomenų bazė. Žingsniai aprašyti faile <strong>docs/RANKING.md</strong> (skyrius „Diegimas“):</p>
+  const p = ui.client && ui.client.configProblem ? ui.client.configProblem() : null;
+  const problem = p && p.status !== 'missing'
+    ? `<div class="notice error" role="alert" data-setup="${esc(p.status)}"><strong>${esc(p.title)}.</strong> ${esc(p.text)}</div>`
+    : '';
+  return `<div class="card" id="unconfigured"><h2>Duomenų bazė dar nesukonfigūruota</h2>${problem}
+    <p>Administravimas veiks, kai bus prijungta Supabase duomenų bazė. Žingsniai aprašyti faile <strong>docs/SUPABASE-DIEGIMAS.md</strong>:</p>
     <ol class="rules-list"><li>Sukurkite nemokamą Supabase projektą ir paleiskite <code>supabase/schema.sql</code>, tada <code>supabase/seed.sql</code>.</li>
-    <li>Sukurkite administratoriaus paskyrą (Authentication → Users) ir įrašykite ją į lentelę <code>admins</code>.</li>
-    <li>Į <code>ranking/runtime-config.js</code> įrašykite projekto URL ir viešą „anon“ raktą.</li></ol>
-    <p class="muted">Kol tai nepadaryta, viešas reitingų puslapis rodo tik kalendorių ir tuščią reitingą.</p></div>`;
+    <li>Sukurkite administratoriaus paskyrą (Authentication → Users) ir suteikite jai teises paleisdami <code>supabase/make-admin.sql</code>.</li>
+    <li>Į <code>ranking/runtime-config.js</code> įrašykite projekto URL ir VIEŠĄ (publishable) raktą – <strong>niekada ne privilegijuotą („secret“) raktą</strong>.</li></ol>
+    <p class="muted">Kol tai nepadaryta, viešas reitingų puslapis rodo tik kalendorių ir paaiškinimą, kad reitingai dar neprijungti.</p></div>`;
 }
 
 function renderLogin() {
@@ -106,7 +119,7 @@ function renderApp() {
   const tabs = TABS.map(([id, label]) => `<button type="button" class="tab${ui.tab === id ? ' active' : ''}" data-act="tab" data-tab="${id}">${label}</button>`).join('');
   let body = '<div class="state state-loading"><div class="spinner"></div><p>Kraunama…</p></div>';
   if (s.ready) {
-    body = { results: renderResults, players: renderPlayers, seasons: renderSeasons, audit: renderAudit, export: renderExport }[ui.tab]();
+    body = { results: renderResults, players: renderPlayers, seasons: renderSeasons, test: renderTest, audit: renderAudit, export: renderExport }[ui.tab]();
   }
   return `${demoBanner}
     <div class="card toolbar"><div class="toolbar-row"><span>Prisijungta: <strong>${esc(email)}</strong></span>
@@ -117,12 +130,14 @@ function renderApp() {
 }
 
 /** Žaidėjų pasirinkimas komandai. Kitose komandose jau pasirinkti žaidėjai išjungiami (apsauga nuo klaidos). */
-function playerOptions(selectedId, blocked = new Set()) {
+function playerOptions(selectedId, blocked = new Set(), { testSeason = false } = {}) {
   const { dataset } = ui.ctl.state;
   const active = dataset.players.filter((p) => !p.mergedInto).sort((a, b) => a.fullName.localeCompare(b.fullName, 'lt'));
   let html = `<option value="">— pasirinkite —</option>${active.map((p) => {
     const taken = blocked.has(p.id) && p.id !== selectedId;
-    return `<option value="${esc(p.id)}"${p.id === selectedId ? ' selected' : ''}${taken ? ' disabled' : ''}>${esc(p.fullName)}${p.isActive ? '' : ' (neaktyvus)'}${taken ? ' – jau pasirinktas' : ''}</option>`;
+    // Bandomieji žaidėjai oficialiuose turnyruose neleidžiami (serveris taip pat atmeta).
+    const testBlocked = p.isTest && !testSeason && p.id !== selectedId;
+    return `<option value="${esc(p.id)}"${p.id === selectedId ? ' selected' : ''}${taken || testBlocked ? ' disabled' : ''}>${esc(p.fullName)}${p.isTest ? ' [BANDOMASIS]' : ''}${p.isActive ? '' : ' (neaktyvus)'}${taken ? ' – jau pasirinktas' : ''}${testBlocked ? ' – tik bandomajam sezonui' : ''}</option>`;
   }).join('')}`;
   if (selectedId && !active.some((p) => p.id === selectedId)) html += `<option value="${esc(selectedId)}" selected>⚠ sujungtas / nežinomas įrašas</option>`;
   return html;
@@ -135,13 +150,15 @@ function renderResults() {
   const inSeason = s.dataset.tournaments.filter((t) => t.seasonId === s.seasonId);
   const t = s.tournamentId ? s.dataset.tournaments.find((x) => x.id === s.tournamentId) : null;
   const picker = `<div class="card"><h2>REZULTATŲ SUVEDIMAS</h2><div class="toolbar-row">
-    <label class="field"><span class="lbl">1. Sezonas</span><select data-sel="season">${seasons.map((x) => `<option value="${esc(x.id)}"${x.id === s.seasonId ? ' selected' : ''}>${esc(x.label)}</option>`).join('')}</select></label>
+    <label class="field"><span class="lbl">1. Sezonas</span><select data-sel="season">${seasons.map((x) => `<option value="${esc(x.id)}"${x.id === s.seasonId ? ' selected' : ''}>${esc(x.label)}${x.isTest ? ' – BANDYMAS' : ''}</option>`).join('')}</select></label>
     <label class="field grow"><span class="lbl">2. Turnyras iš kalendoriaus</span><select data-sel="tournament"><option value="">— pasirinkite turnyrą —</option>${inSeason.map((x) => `<option value="${esc(x.id)}"${x.id === s.tournamentId ? ' selected' : ''}>${esc(x.name)} · ${esc(formatDate(x.date))} · ${esc(STATUSES[x.status])}</option>`).join('')}</select></label>
   </div>${s.dataset.players.filter((p) => !p.mergedInto).length < 2 ? '<p class="muted">Pirmiausia pridėkite žaidėjus skiltyje <a href="#" data-act="tab" data-tab="players">ŽAIDĖJAI</a>.</p>' : ''}</div>`;
   if (!t) return `${picker}<div class="card"><p class="muted">Pasirinkite turnyrą, kad įvestumėte arba peržiūrėtumėte rezultatus.</p></div>`;
 
   const finalized = t.status === OFFICIAL_STATUS;
   const type = EVENT_TYPES[t.type];
+  const tSeason = s.dataset.seasons.find((x) => x.id === t.seasonId);
+  const testSeason = Boolean(tSeason && tSeason.isTest);
   const pts = ui.ctl.livePoints();
   const rows = s.entries.map((e) => {
     const blocked = ui.ctl.usedElsewhere(e.key);
@@ -150,8 +167,8 @@ function renderResults() {
     const cell = !pts.scored ? 'taškų nėra' : (pts.byKey.has(e.key) ? pts.byKey.get(e.key) : '–');
     return `<tr>
       <td data-label="Vieta"><input type="number" min="1" step="1" inputmode="numeric" data-entry="${esc(e.key)}" data-field="position" value="${esc(e.position)}" class="pos-input" aria-label="Galutinė vieta"></td>
-      <td data-label="Žaidėjas 1"><select data-entry="${esc(e.key)}" data-field="player1" aria-label="Žaidėjas 1">${playerOptions(e.playerIds[0], other0)}</select></td>
-      <td data-label="Žaidėjas 2"><select data-entry="${esc(e.key)}" data-field="player2" aria-label="Žaidėjas 2">${playerOptions(e.playerIds[1], other1)}</select></td>
+      <td data-label="Žaidėjas 1"><select data-entry="${esc(e.key)}" data-field="player1" aria-label="Žaidėjas 1">${playerOptions(e.playerIds[0], other0, { testSeason })}</select></td>
+      <td data-label="Žaidėjas 2"><select data-entry="${esc(e.key)}" data-field="player2" aria-label="Žaidėjas 2">${playerOptions(e.playerIds[1], other1, { testSeason })}</select></td>
       <td data-label="Taškai kiekvienam" class="pts" data-points="${esc(e.key)}">${esc(cell)}</td>
       <td><button type="button" class="btn danger" data-act="remove-team" data-key="${esc(e.key)}" aria-label="Pašalinti komandą">✕</button></td></tr>`;
   }).join('');
@@ -171,7 +188,8 @@ function renderResults() {
 
   return `${picker}<div class="card">
     <div class="ttop"><div><h2 style="margin:0">${esc(type.emoji || '')} ${esc(t.name)}</h2><div class="tdate">${esc(formatDate(t.date))} · ${esc(type.label)}</div></div>${statusBadge(t.status)}</div>
-    ${finalized ? `<div class="notice info">Rezultatai paskelbti (versija ${esc(t.revision)}). Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html" target="_blank" rel="noopener">Atidaryti viešą reitingą</a></div>` : ''}
+    ${finalized ? `<div class="notice info">Rezultatai paskelbti (versija ${esc(t.revision)}). Keitimai laikomi pataisymu ir fiksuojami audite. <a href="reitingai.html${testSeason ? `#bendras?s=${esc(t.seasonId)}` : ''}" target="_blank" rel="noopener">Atidaryti viešą reitingą</a></div>` : ''}
+    ${testSeason ? `<div class="notice warning" id="test-season-note">BANDOMASIS turnyras: čia galite laisvai bandyti, rezultatai nėra oficialūs ir bus ištrinti skiltyje BANDYMAS. <a href="reitingai.html#bendras?s=${esc(t.seasonId)}" target="_blank" rel="noopener">Atidaryti bandomąjį viešą reitingą</a></div>` : ''}
     ${t.type === 'final' ? '<div class="notice info">BEACH LEAGUE FINAL taškų sistema nenustatyta – rezultatai bus paskelbti, bet į reitingus neįskaičiuojami.</div>' : ''}
     <h3>3. Komandos ir galutinės vietos</h3>
     <div class="ttable-wrap"><table class="ttable edit" id="results-table"><thead><tr><th>Vieta</th><th>Žaidėjas 1</th><th>Žaidėjas 2</th><th>Taškai kiekvienam</th><th></th></tr></thead>
@@ -207,7 +225,7 @@ function renderPlayers() {
         <td><button type="button" class="btn" data-act="save-player" data-id="${esc(p.id)}">Išsaugoti</button> <button type="button" class="btn secondary" data-act="cancel-edit">Atšaukti</button></td></tr>`;
     }
     const status = p.mergedInto ? 'Sujungtas' : (p.isActive ? 'Aktyvus' : 'Neaktyvus');
-    return `<tr data-player-row="${esc(p.id)}"><td data-label="Vardas, pavardė"><strong>${esc(p.fullName)}</strong></td><td data-label="ID"><code class="pid">${esc(p.id)}</code></td><td data-label="Lytis">${p.gender === 'M' ? 'V' : p.gender === 'F' ? 'M' : '—'}</td><td data-label="Statusas">${status}</td><td data-label="Turnyrai">${counts.get(p.id) || 0}</td>
+    return `<tr data-player-row="${esc(p.id)}"><td data-label="Vardas, pavardė"><strong>${esc(p.fullName)}</strong>${p.isTest ? ' <span class="status st-draft" title="Bandomasis žaidėjas – bus ištrintas su bandymo duomenimis">BANDOMASIS</span>' : ''}</td><td data-label="ID"><code class="pid">${esc(p.id)}</code></td><td data-label="Lytis">${p.gender === 'M' ? 'V' : p.gender === 'F' ? 'M' : '—'}</td><td data-label="Statusas">${status}</td><td data-label="Turnyrai">${counts.get(p.id) || 0}</td>
       <td>${p.mergedInto ? '' : `<button type="button" class="btn secondary" data-act="edit-player" data-id="${esc(p.id)}">Redaguoti</button> <button type="button" class="btn secondary" data-act="toggle-active" data-id="${esc(p.id)}" data-active="${p.isActive}">${p.isActive ? 'Deaktyvuoti' : 'Aktyvuoti'}</button>`}</td></tr>`;
   }).join('');
   const active = s.dataset.players.filter((p) => !p.mergedInto).sort((a, b) => a.fullName.localeCompare(b.fullName, 'lt'));
@@ -223,7 +241,8 @@ function renderPlayers() {
         <label class="field grow"><span class="lbl">Vardas</span><input id="new-first" type="text" maxlength="60" autocomplete="off" value="${esc(ui.newFirst)}" required></label>
         <label class="field grow"><span class="lbl">Pavardė</span><input id="new-last" type="text" maxlength="60" autocomplete="off" value="${esc(ui.newLast)}" required></label>
         <label class="field"><span class="lbl">Lytis (neprivaloma)</span><select id="new-gender"><option value=""${ui.newGender === '' ? ' selected' : ''}>—</option><option value="M"${ui.newGender === 'M' ? ' selected' : ''}>Vyras</option><option value="F"${ui.newGender === 'F' ? ' selected' : ''}>Moteris</option></select></label>
-        <button type="submit" class="btn">PRIDĖTI ŽAIDĖJĄ</button></form>
+        <button type="submit" class="btn">PRIDĖTI ŽAIDĖJĄ</button>
+        <label class="check" style="flex-basis:100%"><input type="checkbox" id="new-test"${ui.newTest ? ' checked' : ''}> Bandomasis žaidėjas (tik sistemos patikrinimui; bus ištrintas skiltyje BANDYMAS)</label></form>
       ${dupHtml}
       <p class="muted">Žaidėjas išsaugomas iš karto. Prieš kuriant tikrinama, ar toks vardas jau nėra įrašytas (nepriklausomai nuo didžiųjų raidžių ir lietuviškų rašmenų). Vardo klaidas taisykite redaguodami esamą įrašą – taip ID, taškai ir istorija išlieka.</p></div>
     <div class="card"><h2>Žaidėjų sąrašas (${list.length})</h2>
@@ -242,7 +261,7 @@ function renderPlayers() {
 function renderSeasons() {
   const s = ui.ctl.state;
   const versions = Object.keys(SCORING_TABLES);
-  const seasonRows = s.dataset.seasons.map((x) => `<tr><td>${esc(x.id)}</td><td>${esc(x.label)}</td><td>${x.isCurrent ? 'Dabartinis' : 'Archyvas'}</td><td>${esc(x.scoringVersion)}</td></tr>`).join('');
+  const seasonRows = s.dataset.seasons.map((x) => `<tr><td>${esc(x.id)}</td><td>${esc(x.label)}</td><td>${x.isTest ? 'BANDOMASIS' : x.isCurrent ? 'Dabartinis' : 'Archyvas'}</td><td>${esc(x.scoringVersion)}</td></tr>`).join('');
   const tournaments = s.dataset.tournaments.filter((t) => t.seasonId === s.seasonId);
   const tRows = tournaments.map((t) => `<tr><td>${esc(t.name)}</td><td>${esc(formatDate(t.date))}</td><td>${statusBadge(t.status)}</td><td>${t.allowTies ? 'Taip' : 'Ne'}</td></tr>`).join('');
   return `<div class="card"><h2>Sezonai</h2>
@@ -264,6 +283,36 @@ function renderSeasons() {
         <label class="check"><input id="t-ties" type="checkbox"> Lygios vietos</label>
         <button type="submit" class="btn">Sukurti turnyrą</button></form>
       <p class="muted">Turnyras priskiriamas dabar pasirinktam sezonui (skiltyje „Rezultatai“). Sezono kalendoriaus renginiai jau sukurti – dublikatų nekurkite.</p></div>`;
+}
+
+// ── BANDYMAS ──
+function renderTest() {
+  const sum = ui.ctl.testSummary();
+  const has = Boolean(sum.season);
+  const anything = has || sum.players.length > 0;
+  const firstTournament = sum.tournaments.find((t) => t.type === 'elite') || sum.tournaments[0];
+  const li = (done, text) => `<li class="${done ? 'done' : ''}">${done ? '✔ ' : ''}${text}</li>`;
+  return `<div class="card" id="test-panel"><h2>BANDYMAS – saugus sistemos patikrinimas</h2>
+      <div class="notice info">Čia galite išbandyti <strong>visą kelią</strong> (prisijungimas → žaidėjai → komandos → paskelbimas → viešas reitingas) su <strong>neoficialiais</strong> duomenimis.
+        Bandymas vyksta atskirame <strong>bandomajame sezone</strong>: jis nerodomas pagrindiniame reitinge, neįskaičiuojamas į istorinę statistiką, o oficialūs turnyrai ir žaidėjai nekeičiami.
+        Baigę viską ištrinsite vienu mygtuku – SQL komandų vykdyti nereikia.</div>
+      <h3>Dabartinė būsena</h3>
+      <ul class="rules-list" id="test-status">
+        ${li(has, `Bandomasis sezonas: <strong>${has ? 'sukurtas' : 'nesukurtas'}</strong>`)}
+        <li>Bandomųjų žaidėjų: <strong id="test-players-count">${sum.players.length}</strong></li>
+        <li>Bandomųjų turnyrų: <strong>${sum.tournaments.length}</strong> (paskelbta: <strong id="test-published-count">${sum.published.length}</strong>, komandų: <strong>${sum.teams}</strong>)</li>
+      </ul>
+      <h3>Kaip patikrinti</h3>
+      <ol class="rules-list">
+        <li><button type="button" class="btn" data-act="create-test-season"${has ? ' disabled' : ''}>1. Sukurti bandomąjį sezoną</button></li>
+        <li>Skiltyje <a href="#" data-act="tab" data-tab="players">ŽAIDĖJAI</a> pridėkite bent 4 žaidėjus su pažymėta varnele „Bandomasis žaidėjas“.</li>
+        <li><button type="button" class="btn secondary" data-act="open-test-tournament"${firstTournament ? '' : ' disabled'}>3. Atidaryti bandomąjį turnyrą</button> – sudėkite dvi komandas, išsaugokite juodraštį, tada paskelbkite.</li>
+        <li><a href="reitingai.html#bendras?s=${esc(sum.season ? sum.season.id : 'bandymas')}" target="_blank" rel="noopener" id="test-public-link">4. Atidaryti bandomąjį viešą reitingą</a> – po paskelbimo abu komandos nariai turi turėti pilnus taškus; juodraštis viešai nematomas.</li>
+      </ol>
+      <h3>Bandymo pabaiga</h3>
+      <p class="muted">Ištrinami <strong>tik</strong> bandomasis sezonas, jo turnyrai ir žaidėjai, pažymėti kaip bandomieji. Oficialūs sezonai, turnyrai, žaidėjai ir paskelbti rezultatai nepaliečiami. Audito žurnalas išlieka. Jei bandomasis žaidėjas kažkodėl yra oficialiame turnyre, trynimas sustabdomas ir niekas neištrinama.</p>
+      <p><button type="button" class="btn danger" data-act="delete-test-data"${anything ? '' : ' disabled'}>Ištrinti VISUS bandymo duomenis</button></p>
+    </div>`;
 }
 
 // ── Auditas ──
@@ -303,7 +352,7 @@ function download({ filename, content }) {
 const val = (id) => (document.getElementById(id) ? document.getElementById(id).value : '');
 
 function resetNewPlayer() {
-  ui.newFirst = ''; ui.newLast = ''; ui.newGender = '';
+  ui.newFirst = ''; ui.newLast = ''; ui.newGender = ''; ui.newTest = false;
   render();
   const first = document.getElementById('new-first');
   if (first && first.focus) first.focus();
@@ -350,6 +399,22 @@ const actions = {
     await ui.ctl.mergePlayers(keep, drop, val('merge-reason'));
   },
   'load-audit': () => ui.ctl.loadAudit(),
+  'create-test-season': () => ui.ctl.createTestSeason(),
+  'open-test-tournament': () => {
+    const sum = ui.ctl.testSummary();
+    const t = sum.tournaments.find((x) => x.type === 'elite') || sum.tournaments[0];
+    if (!t) return;
+    ui.ctl.selectSeason(sum.season.id);
+    ui.ctl.selectTournament(t.id);
+    ui.tab = 'results';
+    render();
+  },
+  'delete-test-data': async () => {
+    const sum = ui.ctl.testSummary();
+    const text = `Ištrinti VISUS bandymo duomenis?\n\nBus ištrinta: bandomasis sezonas (turnyrų: ${sum.tournaments.length}, komandų: ${sum.teams}) ir ${sum.players.length} bandomųjų žaidėjų.\n\nOficialūs duomenys nebus paliesti. Šio veiksmo atšaukti negalima.`;
+    if (!window.confirm(text)) return;
+    await ui.ctl.deleteTestData();
+  },
   export: (el) => {
     const file = ui.ctl.exportCsv(el.dataset.kind);
     if (file) download(file);
@@ -383,7 +448,8 @@ app.addEventListener('submit', async (event) => {
     }
   } else if (form === 'player') {
     ui.newFirst = val('new-first'); ui.newLast = val('new-last'); ui.newGender = val('new-gender');
-    const ok = await ui.ctl.createPlayer({ firstName: ui.newFirst, lastName: ui.newLast, gender: ui.newGender });
+    ui.newTest = Boolean(document.getElementById('new-test') && document.getElementById('new-test').checked);
+    const ok = await ui.ctl.createPlayer({ firstName: ui.newFirst, lastName: ui.newLast, gender: ui.newGender, isTest: ui.newTest });
     if (ok) resetNewPlayer();
   } else if (form === 'season') {
     await ui.ctl.upsertSeason({ id: val('season-id').trim(), label: val('season-label').trim(), isCurrent: document.getElementById('season-current').checked, scoringVersion: val('season-scoring') });
@@ -421,6 +487,7 @@ app.addEventListener('input', (event) => {
 app.addEventListener('change', (event) => {
   const t = event.target;
   if (t.id === 'new-gender') { ui.newGender = t.value; return; }
+  if (t.id === 'new-test') { ui.newTest = Boolean(t.checked); return; }
   if (t.dataset.entry && t.dataset.field) {
     ui.ctl.updateTeam(t.dataset.entry, { [t.dataset.field]: t.value });
     // Pasirinkus žaidėją perpiešiame lentelę, kad jau pasirinkti žaidėjai kitose komandose būtų išjungti.

@@ -3,8 +3,11 @@ import assert from 'node:assert/strict';
 import { createClient, normalizePublicData, normalizeAdminRows, ApiError } from '../ranking/api.js';
 import { computeRankings } from '../ranking/engine.js';
 
+import { fakeJwt } from './helpers.mjs';
+
 const URL = 'https://example.supabase.test';
-const KEY = 'public-anon-key';
+// Testinis „anon“ tipo raktas (neturi jokios galios – tik formatas, kurį atpažįsta kliento patikra).
+const KEY = fakeJwt({ role: 'anon' });
 
 /** Imituoja serverį: visi lankytojai gauna tą patį viešą atsakymą. */
 function fakeServer(publicPayload) {
@@ -156,4 +159,123 @@ test('Administratoriaus patikra: serveris pasako, ar prisijungęs naudotojas yra
   assert.equal(await user.isAdmin(), false, 'paprastas naudotojas nėra administratorius');
   const anon = createClient({ url: URL, anonKey: KEY, fetchImpl: server.fetchImpl });
   await assert.rejects(() => anon.isAdmin(), (err) => err.code === 'not_authenticated');
+});
+
+// ───────── Rakto formatai, sesijos atnaujinimas, aiškios klaidos ─────────
+
+test('Publishable raktas (NE JWT) siunčiamas tik apikey antraštėje, o ne kaip Bearer', async () => {
+  const PUB = 'sb_publishable_TESTONLYabcdefghijklmnop';
+  const server = fakeServer(payload);
+  const client = createClient({ url: URL, anonKey: PUB, fetchImpl: server.fetchImpl });
+  assert.equal(client.configured(), true);
+  await client.fetchPublicData();
+  assert.equal(server.calls[0].init.headers.apikey, PUB);
+  assert.ok(!('Authorization' in server.calls[0].init.headers), 'be Authorization antraštės viešoms užklausoms');
+  // prisijungimo užklausa taip pat tik su apikey
+  await client.signIn('admin@x.test', 'good');
+  const signin = server.calls.find((c) => c.url.includes('grant_type=password'));
+  assert.equal(signin.init.headers.apikey, PUB);
+  assert.ok(!('Authorization' in signin.init.headers));
+  // prisijungus Bearer yra naudotojo sesijos žetonas, o ne raktas
+  await client.finalize('t1');
+  assert.equal(server.calls.at(-1).init.headers.Authorization, 'Bearer admin-token');
+  assert.equal(server.calls.at(-1).init.headers.apikey, PUB);
+});
+
+test('Privilegijuotas raktas niekada nenaudojamas: kliento užklausos į tinklą net neišeina', async () => {
+  const server = fakeServer(payload);
+  for (const bad of [fakeJwt({ role: 'service_role' }), 'sb_secret_TESTONLYabcdefghijklmnop']) {
+    const client = createClient({ url: URL, anonKey: bad, fetchImpl: server.fetchImpl });
+    assert.equal(client.configured(), false);
+    assert.equal(client.configProblem().status, 'secret_key');
+    await assert.rejects(() => client.fetchPublicData(), (err) => err.code === 'not_configured' && /PRIVILEGIJUOTAS/.test(err.message));
+    await assert.rejects(() => client.signIn('a@b.c', 'x'), (err) => err.code === 'not_configured');
+  }
+  assert.equal(server.calls.length, 0, 'jokio tinklo kreipinio su privilegijuotu raktu');
+});
+
+test('Nesukonfigūruoto kliento priežastis prieinama (missing / bad_url)', () => {
+  assert.equal(createClient({ url: '', anonKey: '' }).configProblem().status, 'missing');
+  assert.equal(createClient({ url: 'abc', anonKey: KEY }).configProblem().status, 'bad_url');
+  assert.equal(createClient({ url: URL, anonKey: KEY }).configProblem(), null);
+});
+
+test('Prisijungimo klaidos: neteisingi duomenys, nepatvirtintas el. paštas, per daug bandymų, serverio klaida', async () => {
+  const mk = (status, body) => createClient({ url: URL, anonKey: KEY, fetchImpl: async () => ({ ok: false, status, json: async () => body, text: async () => JSON.stringify(body) }) });
+  await assert.rejects(() => mk(400, { error_code: 'invalid_credentials' }).signIn('a@b.c', 'x'), (e) => e.code === 'invalid_credentials');
+  await assert.rejects(() => mk(400, { error_code: 'email_not_confirmed' }).signIn('a@b.c', 'x'), (e) => e.code === 'email_not_confirmed' && /Auto Confirm/.test(e.message));
+  await assert.rejects(() => mk(429, { error_code: 'over_request_rate_limit' }).signIn('a@b.c', 'x'), (e) => e.code === 'rate_limited');
+  await assert.rejects(() => mk(503, {}).signIn('a@b.c', 'x'), (e) => e.code === 'server_error');
+});
+
+test('Pasibaigęs žetonas: viena sėkminga atnaujinimo + pakartojimo grandinė, o nepavykus – „sesija baigėsi“', async () => {
+  const store = new Map();
+  const storage = { getItem: (k) => store.get(k) ?? null, setItem: (k, v) => store.set(k, v), removeItem: (k) => store.delete(k) };
+  let rpcCalls = 0; let refreshOk = true;
+  const fetchImpl = async (url, init = {}) => {
+    const respond = (status, body) => ({ ok: status < 300, status, text: async () => JSON.stringify(body), json: async () => body });
+    if (url.includes('grant_type=password')) return respond(200, { access_token: 'old-token', refresh_token: 'r1', expires_in: 3600, user: { email: 'a@b.c' } });
+    if (url.includes('grant_type=refresh_token')) return refreshOk ? respond(200, { access_token: 'new-token', refresh_token: 'r2', expires_in: 3600, user: { email: 'a@b.c' } }) : respond(400, { error: 'invalid_grant' });
+    if (url.includes('/rpc/admin_finalize_tournament')) {
+      rpcCalls += 1;
+      return init.headers.Authorization === 'Bearer new-token' ? respond(200, { status: 'finalized' }) : respond(401, { code: 'PGRST301', message: 'JWT expired' });
+    }
+    return respond(404, {});
+  };
+  const client = createClient({ url: URL, anonKey: KEY, fetchImpl, storage });
+  await client.signIn('a@b.c', 'x');
+  assert.deepEqual(await client.finalize('t1'), { status: 'finalized' });
+  assert.equal(rpcCalls, 2, 'pirmas bandymas su senu žetonu, antras – po atnaujinimo');
+  assert.equal(client.getSession().accessToken, 'new-token');
+
+  // atnaujinti nepavyksta → aiški klaida ir išvalyta sesija (UI grąžina į prisijungimą)
+  const client2 = createClient({ url: URL, anonKey: KEY, fetchImpl, storage: null });
+  await client2.signIn('a@b.c', 'x');
+  refreshOk = false;
+  await assert.rejects(() => client2.finalize('t1'), (e) => e.code === 'session_expired');
+  assert.equal(client2.isSignedIn(), false);
+});
+
+test('Tinklo klaida atnaujinant sesiją nesugriauna kliento (grąžinamas aiškus kodas)', async () => {
+  let n = 0;
+  const fetchImpl = async (url) => {
+    if (url.includes('grant_type=password')) return { ok: true, status: 200, json: async () => ({ access_token: 'old', refresh_token: 'r', expires_in: 1, user: { email: 'a@b.c' } }), text: async () => '' };
+    n += 1;
+    throw new TypeError('fetch failed');
+  };
+  const client = createClient({ url: URL, anonKey: KEY, fetchImpl });
+  await client.signIn('a@b.c', 'x'); // expires_in 1 s → refresh bus bandomas prieš kiekvieną kvietimą
+  await assert.rejects(() => client.finalize('t1'), (e) => e instanceof ApiError && ['network', 'session_expired'].includes(e.code));
+  assert.ok(n >= 1);
+});
+
+test('Viešo skaitymo klaidos: atmestas raktas ir nepaleista schema turi aiškius pranešimus', async () => {
+  const mk = (status, body) => createClient({ url: URL, anonKey: KEY, fetchImpl: async () => ({ ok: false, status, text: async () => JSON.stringify(body) }) });
+  await assert.rejects(() => mk(401, { message: 'Invalid API key' }).fetchPublicData(), (e) => e.code === 'invalid_key' && /runtime-config/.test(e.message));
+  await assert.rejects(() => mk(404, { code: 'PGRST202', message: 'Could not find the function public.public_ranking_data' }).fetchPublicData(), (e) => e.code === 'schema_missing' && /schema\.sql/.test(e.message));
+  // teisių klaida (42501) nepainiojama su blogu raktu
+  await assert.rejects(() => mk(401, { code: '42501', message: 'permission denied for function x' }).fetchPublicData(), (e) => e.code === 'not_authorized');
+});
+
+test('Normalizavimas perduoda bandomąjį požymį (sezonas, žaidėjas)', () => {
+  const pub = normalizePublicData({ seasons: [{ id: 'bandymas', label: 'B', isTest: true }, { id: 's', label: 'S' }] });
+  assert.deepEqual(pub.seasons.map((s) => s.isTest), [true, false]);
+  const adm = normalizeAdminRows({ seasons: [{ id: 'b', label: 'B', is_test: true }], players: [{ id: 'p', full_name: 'A B', is_test: true }, { id: 'q', full_name: 'C D' }] });
+  assert.equal(adm.seasons[0].isTest, true);
+  assert.deepEqual(adm.players.map((p) => p.isTest), [true, false]);
+});
+
+test('Žaidėjo kūrimas siunčia is_test tik kai žaidėjas bandomasis', async () => {
+  const bodies = [];
+  const fetchImpl = async (url, init = {}) => {
+    if (url.includes('grant_type=password')) return { ok: true, status: 200, json: async () => ({ access_token: 't', refresh_token: 'r', expires_in: 3600, user: { email: 'a@b.c' } }), text: async () => '' };
+    if (url.endsWith('/rest/v1/players')) { bodies.push(JSON.parse(init.body)); return { ok: true, status: 201, text: async () => JSON.stringify([{ id: 'x', first_name: 'A', last_name: 'B', full_name: 'A B' }]) }; }
+    return { ok: false, status: 404, text: async () => '{}' };
+  };
+  const client = createClient({ url: URL, anonKey: KEY, fetchImpl });
+  await client.signIn('a@b.c', 'x');
+  await client.createPlayer({ firstName: 'A', lastName: 'B' });
+  await client.createPlayer({ firstName: 'A', lastName: 'B', isTest: true });
+  assert.ok(!('is_test' in bodies[0]));
+  assert.equal(bodies[1].is_test, true);
 });
