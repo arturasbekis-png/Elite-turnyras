@@ -221,3 +221,21 @@ test('Srautas: be varnelės „leisti pasidalintas vietas“ dubliuota vieta atm
   assert.equal(pv.validation.valid, false);
   assert.ok(pv.validation.errors.some((e) => e.code === 'duplicate_position'));
 });
+
+test('4 vieta lieka 4 vietoje ir nepatenka į 5–8 grupę (trys komandos 5 vietoje, ketvirtos dar nėra)', async () => {
+  const { ctl, id } = await setup(14);
+  await enableTies(ctl, C1);
+  fill(ctl, id, C1, [[1, 1, 2], [2, 3, 4], [3, 5, 6], [4, 7, 8], [5, 9, 10], [5, 11, 12], [5, 13, 14]]);
+  const pv = ctl.preview();
+  assert.equal(pv.validation.valid, true, JSON.stringify(pv.validation.errors));
+  assert.deepEqual(pv.teams.map((t) => [t.position, t.points]), [[1, 40], [2, 32], [3, 26], [4, 21], [5, 16], [5, 16], [5, 16]]);
+  assert.equal(await ctl.saveDraft('draft'), true);
+  assert.equal(official(ctl).overall.length, 0, 'juodraštis reitingo nekeičia');
+
+  // 4 vietos komandos „įstumti“ į 5 vietos grupę negalima: pozicijos 5,5,5,5 po trijų geresnių būtų neteisingos
+  const fourth = ctl.state.entries.find((e) => e.playerIds.includes(id(7)));
+  ctl.updateTeam(fourth.key, { position: '5' });
+  const moved = ctl.preview();
+  assert.equal(moved.validation.valid, false);
+  assert.ok(moved.validation.errors.some((e) => e.code === 'invalid_tie_positions'));
+});
