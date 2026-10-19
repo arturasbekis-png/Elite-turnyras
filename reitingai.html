@@ -1,0 +1,26 @@
+<!DOCTYPE html>
+<html lang="lt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ELITE – Reitingai</title>
+<meta name="description" content="ELITE paplūdimio tinklinio turnyrų sezono reitingai: bendras reitingas, ELITE, CHALLENGE ir FUTURE įskaitos bei turnyrų rezultatai.">
+<link rel="stylesheet" href="ranking/ranking.css">
+</head>
+<body>
+<div class="overlay"><main class="page">
+<header class="header">
+<div class="logo">ELITE</div>
+<div class="title">Reitingai</div>
+<div class="season">Paplūdimio tinklinio turnyrų sezonas</div>
+</header>
+<nav class="mainnav" aria-label="Pagrindinė navigacija">
+<a href="./">KALENDORIUS</a>
+<a href="reitingai.html" class="active" aria-current="page">REITINGAI</a>
+</nav>
+<div id="app" aria-live="polite"><div class="state state-loading" role="status"><div class="spinner" aria-hidden="true"></div><p>Kraunami reitingai…</p></div></div>
+<noscript><div class="card"><p>Reitingams peržiūrėti reikalingas įjungtas JavaScript.</p></div></noscript>
+</main></div>
+<script type="module" src="ranking/public-app.js"></script>
+</body>
+</html>
