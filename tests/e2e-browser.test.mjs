@@ -123,52 +123,69 @@ test('E2E paruošimas: DB (shim + schema + seed), serveriai, naršyklė', { skip
   browser = await playwright.chromium.launch();
 });
 
-test('Neprijungta duomenų bazė: abu puslapiai veikia vietiniu režimu ir aiškiai sako, kad nieko nepaskelbta viešai', { skip }, async () => {
+test('Neprijungta duomenų bazė: viešas puslapis rodo oficialų failą visiems, administravimo juodraščiai atskirti', { skip }, async () => {
   const context = await browser.newContext();
   const page = await newPage(context);
   const foreign = [];
   page.on('request', (r) => { if (!r.url().startsWith(siteOff) && !r.url().startsWith('data:')) foreign.push(r.url()); });
+  const officialPoints = (rows) => Object.fromEntries(rows.map((r) => [r.name, r.points]));
 
-  // Viešas puslapis be duomenų
-  await page.goto(`${siteOff}reitingai.html`);
-  await page.locator('#local-info').waitFor();
-  let text = await page.locator('#app').innerText();
-  assert.match(text, /duomenų bazė dar neprijungta/);
-  assert.match(text, /Oficialių rezultatų dar nėra/);
-  assert.doesNotMatch(text, /Demo |Testinis/);
-  assert.equal(await page.locator('.rrow').count(), 0, 'nieko neišgalvojama');
-  await page.goto(`${siteOff}reitingai.html#turnyrai`);
-  await page.locator('.tcard').first().waitFor();
-  assert.equal(await page.locator('.tcard').count(), 19, 'kalendorius veikia');
+  // Viešas puslapis: oficialūs rezultatai iš statinio failo
+  const pub = await context.newPage();
+  await pub.goto(`${siteOff}reitingai.html`);
+  await pub.locator('#static-info').waitFor();
+  await pub.locator('.rrow').first().waitFor();
+  const before = await publicRows(pub);
+  assert.equal(before.length, 24);
+  const pts = officialPoints(before);
+  assert.equal(pts['Sofija B.'], 50); assert.equal(pts['Emilija P.'], 50);
+  assert.equal(pts['Lea D.'], 36); assert.equal(pts['Danielė Š.'], 36);
+  assert.equal(pts['Goda'], 21); assert.equal(pts['Amelija'], 21);
+  assert.equal(pts['Luka B.'], 15);
+  const text = await pub.locator('#app').innerText();
+  assert.match(text, /Duomenys nepilni/);
+  assert.match(text, /žinomos 3 iš 4/);
+  await pub.goto(`${siteOff}reitingai.html#turnyrai`);
+  await pub.locator('.tcard').first().waitFor();
+  assert.equal(await pub.locator('.tcard').count(), 19, 'kalendorius veikia');
+  await pub.goto(`${siteOff}reitingai.html#turnyrai/2026-2027-challenge-1`);
+  await pub.locator('[data-incomplete="5"]').waitFor();
+  assert.match(await pub.locator('.tdetail').innerText(), /Goda[\s\S]*21/);
+
+  // Kitas „lankytojas“ (švari naršyklė) mato tą patį
+  const other = await browser.newContext();
+  const otherPage = await newPage(other);
+  await otherPage.goto(`${siteOff}reitingai.html`);
+  await otherPage.locator('.rrow').first().waitFor();
+  assert.deepEqual(await publicRows(otherPage), before, 'visi lankytojai mato tuos pačius rezultatus');
+  await other.close();
 
   // Administravimas be prisijungimo, su aiškiu perspėjimu
   await page.goto(`${siteOff}reitingai-admin.html`);
   await page.locator('#local-banner').waitFor();
-  assert.match(await page.locator('#local-banner').innerText(), /VIETINIS REŽIMAS[\s\S]*NĖRA viešai paskelbta/);
+  assert.match(await page.locator('#local-banner').innerText(), /VIETINIS REŽIMAS[\s\S]*tik juodraštis[\s\S]*data\/official-results\.json/);
   assert.equal(await page.locator('#login-email').count(), 0, 'prisijungimo formos nėra');
   assert.equal(await page.locator('[data-tab="test"]').count(), 0, 'BANDYMAS vietiniame režime nerodomas');
 
-  // Telefono dydžio ekranas: be horizontalios slinkties (administravimas ir viešas puslapis vietiniame režime)
+  // Telefono dydžio ekranas: be horizontalios slinkties
   await page.setViewportSize({ width: 390, height: 800 });
   const overflow = () => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
   assert.ok(await overflow() <= 1, 'administravimas telefone');
-  await page.goto(`${siteOff}reitingai.html`);
-  await page.locator('#local-info').waitFor();
-  assert.ok(await overflow() <= 1, 'viešas puslapis telefone');
+  await pub.setViewportSize({ width: 390, height: 800 });
+  await pub.goto(`${siteOff}reitingai.html`);
+  await pub.locator('.rrow').first().waitFor();
+  assert.ok(await pub.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1, 'viešas puslapis telefone');
+  await pub.setViewportSize({ width: 1280, height: 800 });
   await page.setViewportSize({ width: 1280, height: 800 });
-  await page.goto(`${siteOff}reitingai-admin.html`);
-  await page.locator('#local-banner').waitFor();
 
-  // Pilnas srautas: 12 testinių žaidėjų, ELITE su dalijama 5–6 vieta, juodraštis, patvirtinimas
-  for (let i = 1; i <= 12; i++) await addPlayer(page, 'Testinis', `E${String(i).padStart(2, '0')}`);
+  // Vietinis srautas: 4 testiniai žaidėjai, FUTURE #1 juodraštis ir „patvirtinimas“ TIK naršyklėje
+  for (let i = 1; i <= 4; i++) await addPlayer(page, 'Testinis', `E${i}`);
   await page.click('[data-act="tab"][data-tab="results"]');
-  await page.selectOption('select[data-sel="tournament"]', E1);
-  await page.locator('input[data-ties]').check();
-  const teams = [[1, 1, 2], [2, 3, 4], [3, 5, 6], [4, 7, 8], [5, 9, 10], [5, 11, 12]];
-  for (const [pos] of teams) await page.click('[data-act="add-team"]');
-  const name = (n) => `Testinis E${String(n).padStart(2, '0')}`;
-  for (let i = 0; i < teams.length; i++) {
-    const [pos, a, b] = teams[i];
+  await page.selectOption('select[data-sel="tournament"]', '2026-2027-future-1');
+  await page.click('[data-act="add-team"]');
+  await page.click('[data-act="add-team"]');
+  const name = (n) => `Testinis E${n}`;
+  for (const [i, [pos, a, b]] of [[1, 1, 2], [2, 3, 4]].entries()) {
     await page.locator('input[data-field="position"]').nth(i).fill(String(pos));
     await page.locator('select[data-field="player1"]').nth(i).selectOption({ label: name(a) });
     await page.locator('select[data-field="player2"]').nth(i).selectOption({ label: name(b) });
@@ -177,44 +194,26 @@ test('Neprijungta duomenų bazė: abu puslapiai veikia vietiniu režimu ir aišk
   await page.locator('.notice.success', { hasText: 'Juodraštis išsaugotas' }).waitFor();
   assert.match(await page.locator('#app').innerText(), /PATVIRTINTI \(TIK ŠIOJE NARŠYKLĖJE\)/);
   assert.doesNotMatch(await page.locator('#app').innerText(), /PASKELBTI OFICIALIUS/);
-
-  // Juodraštis viešame puslapyje (ta pati naršyklė) taškų neduoda
-  const pub = await context.newPage();
-  await pub.goto(`${siteOff}reitingai.html`);
-  await pub.locator('#local-banner, #local-info').first().waitFor();
-  assert.equal(await pub.locator('.rrow').count(), 0, 'juodraštis taškų neduoda');
-
   await page.click('[data-act="finalize"]');
   await page.locator('.notice.success', { hasText: 'TIK šioje naršyklėje' }).waitFor();
   assert.match(await page.locator('.notice.success').innerText(), /NEPASKELBTI viešai/);
 
-  // Po perkrovimo duomenys išlieka; viešas puslapis rodo juos su ryškiu perspėjimu
+  // Po perkrovimo vietiniai duomenys išlieka administravime, bet VIEŠAS puslapis nepasikeičia
   await page.reload();
   await page.locator('#local-banner').waitFor();
   await pub.reload();
-  await pub.locator('#local-banner').waitFor();
-  assert.match(await pub.locator('#local-banner').innerText(), /VIETINIAI DUOMENYS[\s\S]*nėra viešai paskelbti/);
-  const rows = await publicRows(pub);
-  assert.equal(rows.length, 12);
-  const pts = Object.fromEntries(rows.map((r) => [r.name, r.points]));
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((n) => pts[name(n)]), [50, 50, 40, 40, 32, 32, 26, 26, 21, 21, 21, 21], 'abu partneriai pilni taškai; 5–6 vieta po 21');
+  await pub.locator('.rrow').first().waitFor();
+  assert.deepEqual(await publicRows(pub), before, 'vietiniai duomenys viešame puslapyje nerodomi');
+  assert.doesNotMatch(await pub.locator('#app').innerText(), /Testinis/);
 
-  // Naujas „lankytojas“ (švari naršyklė) nemato nieko iš to, kas įvesta čia
-  const other = await browser.newContext();
-  const otherPage = await newPage(other);
-  await otherPage.goto(`${siteOff}reitingai.html`);
-  await otherPage.locator('#local-info').waitFor();
-  assert.equal(await otherPage.locator('.rrow').count(), 0, 'kiti lankytojai vietinių duomenų nemato');
-  await other.close();
-
-  // Išvalymas grąžina tuščią būseną
+  // Išvalymas liečia tik vietinius duomenis
   await page.click('[data-act="clear-local"]');
   await page.locator('#local-banner').waitFor();
   await page.click('[data-act="tab"][data-tab="players"]');
-  assert.equal(await page.locator('#app', { hasText: 'Testinis E01' }).count(), 0);
+  assert.equal(await page.locator('#app', { hasText: 'Testinis E1' }).count(), 0);
   await pub.reload();
-  await pub.locator('#local-info').waitFor();
-  assert.equal(await pub.locator('.rrow').count(), 0);
+  await pub.locator('.rrow').first().waitFor();
+  assert.deepEqual(await publicRows(pub), before);
 
   assert.deepEqual(foreign, [], 'jokių užklausų už svetainės ribų (nei į Supabase, nei kitur)');
   await context.close();

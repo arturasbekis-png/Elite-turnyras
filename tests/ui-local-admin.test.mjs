@@ -17,7 +17,7 @@ test('Vietinis administravimas: perspėjimas, be prisijungimo, be BANDYMAS skilt
   const html = () => app.innerHTML;
 
   assert.ok(html().includes('id="local-banner"') && html().includes('VIETINIS REŽIMAS'));
-  assert.ok(html().includes('NĖRA viešai paskelbta') && html().includes('kiti lankytojai šių duomenų nemato'));
+  assert.ok(html().includes('tik juodraštis') && html().includes('NĖRA, kiti lankytojai šių duomenų nemato') && html().includes('data/official-results.json'));
   assert.ok(!html().includes('login-password'), 'prisijungimo formos nėra');
   assert.ok(!html().includes('data-act="logout"'));
   assert.ok(html().includes('data-act="clear-local"'));
@@ -59,7 +59,7 @@ test('Vietinis administravimas: perspėjimas, be prisijungimo, be BANDYMAS skilt
   await app.handlers.click(act('finalize'));
   await tick(60);
   assert.ok(html().includes('Rezultatai patvirtinti TIK šioje naršyklėje') && html().includes('NEPASKELBTI viešai'));
-  assert.ok(html().includes('id="local-finalized"') && html().includes('viešai NEPASKELBTI'));
+  assert.ok(html().includes('id="local-finalized"') && html().includes('viešai NEPASKELBTI') && html().includes('viešame reitingų puslapyje nerodomi'));
   assert.ok(!html().includes('Rezultatai patvirtinti ir paskelbti'), 'nesakoma, kad paskelbta viešai');
   assert.ok(!html().includes('Atidaryti viešą reitingą'));
   assert.equal(fetched, 0, 'jokių tinklo užklausų (nėra jokio serverio)');

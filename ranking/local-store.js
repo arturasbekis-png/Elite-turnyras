@@ -1,5 +1,6 @@
 // Vietinis režimas: kol Supabase neprijungtas, duomenys gali būti saugomi TIK šios naršyklės localStorage.
-// Tai NĖRA bendra saugykla ir NĖRA viešas paskelbimas: kiti lankytojai šių duomenų nemato.
+// Tai NĖRA bendra saugykla ir NĖRA viešas paskelbimas: kiti lankytojai šių duomenų nemato, o viešas puslapis jų
+// niekada nenaudoja (jis rodo tik data/official-results.json).
 // Čia nėra jokių žaidėjų ar rezultatų – saugoma tik tai, ką administratorius pats įveda savo naršyklėje.
 
 export const LOCAL_KEY = 'elite-ranking-local-v1';

@@ -186,18 +186,29 @@ in memory.
   pre-existing and left unchanged.
 
 
-## Local mode (no Supabase)
+## Public results without Supabase (static file) and local admin mode
 
-While `ranking/runtime-config.js` is **empty**, both pages still work:
+While `ranking/runtime-config.js` is **empty**:
 
-* `reitingai.html` loads (calendar, tournaments list, scoring rules, all tabs). With no data it says the shared database
-  is not connected yet and shows no standings – nothing is invented.
-* `reitingai-admin.html` runs **without login** against the same rules/engine (`ranking/local-backend.js`) and keeps the
-  data **only in that browser's `localStorage`** (`ranking/local-store.js`). A permanent banner says the data is NOT
-  published, other visitors never see it, and clearing browser data deletes it. The button is labelled
-  "PATVIRTINTI (TIK ŠIOJE NARŠYKLĖJE)", never "publish". The BANDYMAS tab is hidden (local data is already unofficial).
-* The public page in the same browser shows that local data with its own warning banner; a visitor in any other
-  browser sees the empty state.
-* If the config is filled but wrong (bad URL/key, secret key), local mode is NOT used – the specific problem is shown.
-* Local data is not migrated to Supabase later (re-enter, or use the CSV export). Real publishing requires Supabase
-  (docs/SUPABASE-DIEGIMAS.md); local mode has no authentication and is unsuitable for shared administration.
+* **Official results are a static file**: `data/official-results.json`, committed to the repository and loaded by
+  `reitingai.html` (`ranking/static-results.js`). Every visitor on every device sees the same data. The file holds
+  players, tournaments (ids of the existing calendar events), teams and positions – **never points**; points are always
+  calculated by `ranking/engine.js` (shared places = average of the occupied places, both teammates get the full amount).
+  The loader validates the file (unknown players/tournaments, invalid or duplicate positions, bad `groupSize` are rejected
+  and the page shows an error instead of wrong results) and ignores duplicate ids, so reloading or listing a record twice
+  never doubles points. `localStorage` is never used by the public page.
+* **Incomplete data is flagged, not invented.** A team record may carry `groupSize` (the size of its shared-place group as
+  written in the source, e.g. "5–8" = 4). If fewer teams are known, the page shows "Duomenys nepilni … trūksta N" and
+  points use the declared group (CHALLENGE 5–8 = 15); the missing team is never created. Adding it later (a new
+  participation with the same `position` and `groupSize`) changes nobody else's points.
+* **To publish or correct results**: edit `data/official-results.json` (add players/teams, change `status`), run
+  `npm test`, commit to `main`; GitHub Pages deploys it. `status: "finalized"` counts; anything else (draft/planned)
+  is ignored by the ranking.
+* `reitingai-admin.html` runs **without login** in **local mode** (`ranking/local-backend.js`, `ranking/local-store.js`):
+  same rules and engine, data kept only in that browser's `localStorage`, permanent warning banner, button labelled
+  "PATVIRTINTI (TIK ŠIOJE NARŠYKLĖJE)". These are private drafts: they never appear on the public page. The BANDYMAS tab
+  is hidden in local mode.
+* If the config is filled but wrong (bad URL/key, secret key), neither mode is used – the specific problem is shown.
+* With Supabase configured, the database is the single source and the static file is not used. Local drafts are not
+  migrated to Supabase (re-enter, or use the CSV export); `groupSize` is a static-file feature (the database path
+  counts only entered teams).
