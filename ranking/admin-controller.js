@@ -3,7 +3,7 @@
 // SVARBU: čia daroma tik patogi validacija naudotojui. Galutinį sprendimą visada priima serveris
 // (supabase/schema.sql funkcijos), todėl apeiti taisyklių per naršyklę negalima.
 
-import { validateResults, previewPoints, computeRankings, tournamentView, scoringTableFor, pointsForPosition } from './engine.js';
+import { validateResults, previewPoints, computeRankings, tournamentView, scoringTableFor, pointsForEntry, positionCounts } from './engine.js';
 import { overallCsv, categoryCsv, tournamentCsv } from './csv.js';
 import { tournamentId as makeTournamentId } from './events.js';
 import { fold, pickDefaultSeason } from './view.js';
@@ -121,9 +121,10 @@ export function createAdminController(backend, { onChange = () => {}, onAuthLost
     const bands = scoringTableFor(t.type, t.scoringVersion || (season && season.scoringVersion));
     if (!bands) return result;
     result.scored = true;
+    const counts = positionCounts(state.entries.map((e) => ({ position: parsePosition(e.position) })));
     state.entries.forEach((e) => {
       const position = parsePosition(e.position);
-      if (Number.isInteger(position) && position >= 1) result.byKey.set(e.key, pointsForPosition(bands, position));
+      if (Number.isInteger(position) && position >= 1) result.byKey.set(e.key, pointsForEntry(bands, position, counts));
     });
     return result;
   }

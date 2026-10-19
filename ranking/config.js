@@ -96,12 +96,13 @@ export const DEFAULT_SEASONS = [
  * Lygių pozicijų politika (rodoma „Reitingavimo taisyklėse“).
  * Pagal nutylėjimą lygių vietų turnyre NĖRA: kiekviena komanda turi unikalią vietą 1..N.
  * Jei turnyrui įjungta `allowTies`, galioja standartinis „1-2-2-4“ (competition ranking) principas:
- * visos komandos, pasidalinusios vietą, gauna taškus už geriausią tos grupės vietą,
- * o kita vieta praleidžiama (pvz. 5,5,7,7).
+ * vietos numeruojamos taip (5,5,7,7), o komandos, pasidalinusios vietą, užima visas tos grupės vietas
+ * ir KIEKVIENA gauna jų taškų VIDURKĮ (ELITE 5–6: (22+20)/2 = 21; CHALLENGE 5–8: (18+16+14+12)/4 = 15).
+ * Kiekvienas poros narys gauna visus šiuos taškus. Vidurkis apvalinamas iki 2 skaitmenų po kablelio.
  */
 export const TIE_POLICY = {
   defaultAllowTies: false,
-  sharedPlaceRule: 'best-position',
+  sharedPlaceRule: 'average-of-occupied-places',
 };
 
 /** Reitingų sudarymo lygių sprendimo tvarka (naudojama ir taisyklių tekste). */

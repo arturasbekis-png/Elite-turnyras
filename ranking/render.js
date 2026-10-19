@@ -68,7 +68,7 @@ export function renderPlayerDetail(row, playersById) {
     </tr>`;
   }).join('');
   const counted = results.filter((r) => r.counted);
-  const sum = counted.reduce((s, r) => s + r.points, 0);
+  const sum = Math.round(counted.reduce((s, r) => s + r.points, 0) * 100) / 100;
   return `<div class="dwrap"><table class="dtable"><thead><tr><th>Turnyras</th><th>Data</th><th>Vieta</th><th>Partneris</th><th>Taškai</th></tr></thead><tbody>${body}</tbody>
     <tfoot><tr><td colspan="4">Taškų suma (${counted.length} įskaitomi turnyrai)</td><td class="pts">${esc(sum)}</td></tr></tfoot></table></div>`;
 }
@@ -229,7 +229,7 @@ export function renderRules(version = DEFAULT_SCORING_VERSION) {
       <li><strong>BEACH LEAGUE FINAL.</strong> Taškų sistema šiam renginiui dar nepatvirtinta, todėl jo rezultatai į reitingus kol kas neįskaičiuojami.</li>
       <li><strong>Lygūs taškai bendrame reitinge.</strong> Vieta nustatoma pagal: 1) daugiau pirmų vietų ELITE turnyruose; 2) daugiau pirmų vietų iš viso (ELITE, CHALLENGE ir FUTURE); 3) daugiau antrų vietų ELITE turnyruose; 4) daugiau sužaistų patvirtintų turnyrų. Jei vis tiek lygu, žaidėjai dalijasi ta pačia vieta (pažymėta „=“). Vardas ar pavardė vietos nenulemia.</li>
       <li><strong>Lygūs taškai kategorijų reitinguose.</strong> 1) daugiau pirmų vietų tos kategorijos turnyruose; 2) daugiau antrų vietų tos kategorijos turnyruose; 3) daugiau sužaistų tos kategorijos turnyrų; toliau – ta pati vieta.</li>
-      <li><strong>Pasidalintos vietos turnyre.</strong> Pagal nutylėjimą kiekviena komanda užima atskirą vietą. Jei organizatoriai turnyrui leidžia pasidalintas vietas, visos jas pasidalinusios komandos gauna taškus už geriausią tos grupės vietą, o kita vieta praleidžiama (pvz. 1, 2, 2, 4). Vietoms 9–12 ir 13–16 taškai vienodi, todėl joms vietų dalytis nebūtina.</li>
+      <li><strong>Pasidalintos vietos turnyre.</strong> Pagal nutylėjimą kiekviena komanda užima atskirą vietą. Jei organizatoriai turnyrui leidžia pasidalintas vietas, pasidalinusios komandos užima visas tos grupės vietas ir kiekviena gauna jų taškų vidurkį (pvz. ELITE 5–6 vietos: (22 + 20) / 2 = 21; CHALLENGE 5–8 vietos: (18 + 16 + 14 + 12) / 4 = 15), o kita vieta praleidžiama (pvz. 1, 2, 2, 4). Abu poros nariai gauna visus šiuos taškus. Vietoms 9–12 ir 13–16 taškai vienodi, todėl joms vietų dalytis nebūtina.</li>
       <li><strong>Pataisymai.</strong> Jei paskelbtame rezultate randama klaida, jis pataisomas, visi reitingai perskaičiuojami automatiškai, o pakeitimas ir jo priežastis išsaugomi audito žurnale.</li>
       <li><strong>Judėjimas.</strong> Rodo vietos pokytį, palyginus su lentele prieš paskutinį patvirtintą turnyrą. Kol patvirtintas tik vienas turnyras, judėjimas nerodomas.</li>
     </ol>

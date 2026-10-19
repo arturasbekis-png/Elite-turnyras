@@ -28,6 +28,8 @@ export function scoringTableFor(eventType, version = DEFAULT_SCORING_VERSION, ta
   return set.tables[type.scoringKey] || null;
 }
 
+const round2 = (value) => Math.round((value + Number.EPSILON) * 100) / 100;
+
 /** Taškai už galutinę komandos vietą. Kiekvienas poros žaidėjas gauna VISUS šiuos taškus. */
 export function pointsForPosition(bands, position) {
   if (!Number.isInteger(position) || position < 1) {
@@ -36,6 +38,34 @@ export function pointsForPosition(bands, position) {
   const band = bands.find((b) => position >= b.from && (b.to == null || position <= b.to));
   if (!band) throw new RangeError(`Vietai ${position} taškų lentelėje nėra eilutės`);
   return band.points;
+}
+
+/**
+ * Taškai komandai, pasidalinusiai vietą. Jei vietą dalijasi `size` komandų, jos užima vietas
+ * position … position+size-1, o KIEKVIENA komanda gauna šių vietų taškų VIDURKĮ
+ * (pvz. ELITE 5–6: (22+20)/2 = 21; CHALLENGE 5–8: (18+16+14+12)/4 = 15).
+ * Kai vietos nedalijamos (size = 1), grąžinami įprasti taškai. Rezultatas apvalinamas iki 2 skaitmenų po kablelio.
+ * Kiekvienas poros narys vis tiek gauna VISUS šiuos taškus.
+ */
+export function sharedPlacePoints(bands, position, size = 1) {
+  if (!Number.isInteger(size) || size < 1) throw new RangeError(`Netinkamas dalijančių vietą komandų skaičius: ${size}`);
+  let sum = 0;
+  for (let i = 0; i < size; i++) sum += pointsForPosition(bands, position + i);
+  return round2(sum / size);
+}
+
+/** Kiek komandų dalijasi kiekvieną vietą: Map(vieta → komandų skaičius). Ignoruoja netinkamas vietas. */
+export function positionCounts(list) {
+  const counts = new Map();
+  for (const p of list || []) {
+    if (Number.isInteger(p.position) && p.position >= 1) counts.set(p.position, (counts.get(p.position) || 0) + 1);
+  }
+  return counts;
+}
+
+/** Taškai vienai komandai, atsižvelgiant į tai, kiek komandų dalijasi jos vietą tame pačiame turnyre. */
+export function pointsForEntry(bands, position, counts) {
+  return sharedPlacePoints(bands, position, (counts && counts.get(position)) || 1);
 }
 
 function versionFor(dataset, tournament) {
@@ -47,11 +77,12 @@ function versionFor(dataset, tournament) {
 /** Taškų peržiūra prieš paskelbimą: kiek taškų gaus kiekviena komanda ir žaidėjas. */
 export function previewPoints({ tournament, participations, scoringVersion, tables = SCORING_TABLES }) {
   const bands = scoringTableFor(tournament.type, scoringVersion || tournament.scoringVersion || DEFAULT_SCORING_VERSION, tables);
+  const counts = positionCounts(participations);
   const rows = (participations || []).map((p) => ({
     participationId: p.id,
     playerIds: p.playerIds,
     position: p.position,
-    points: bands && Number.isInteger(p.position) && p.position >= 1 ? pointsForPosition(bands, p.position) : 0,
+    points: bands && Number.isInteger(p.position) && p.position >= 1 ? pointsForEntry(bands, p.position, counts) : 0,
   }));
   return { scored: Boolean(bands), rows };
 }
@@ -194,9 +225,10 @@ export function buildPlayerResults(dataset, { seasonId } = {}) {
       .slice()
       .sort((a, b) => String(a.id).localeCompare(String(b.id)));
     const seen = new Set();
+    const counts = positionCounts(parts);
     for (const p of parts) {
       if (!Number.isInteger(p.position) || p.position < 1) continue;
-      const points = bands ? pointsForPosition(bands, p.position) : 0;
+      const points = bands ? pointsForEntry(bands, p.position, counts) : 0;
       const ids = (p.playerIds || []).map(resolve);
       for (const playerId of ids) {
         if (seen.has(playerId)) {
@@ -247,9 +279,9 @@ function aggregate(results) {
     a.results.push(r);
     if (!r.counted) continue;
     const c = a.categories[r.category];
-    a.points += r.points;
+    a.points = round2(a.points + r.points);
     a.played += 1;
-    c.points += r.points;
+    c.points = round2(c.points + r.points);
     c.played += 1;
     c.results.push(r);
     if (r.position === 1) { a.totalWins += 1; c.wins += 1; }
@@ -393,13 +425,14 @@ export function tournamentView(dataset, tournamentId) {
   const bands = scoringTableFor(t.type, versionFor(dataset, t));
   const official = t.status === OFFICIAL_STATUS;
   const parts = official ? (dataset.participations || []).filter((p) => p.tournamentId === t.id) : [];
+  const counts = positionCounts(parts);
   const teams = parts
     .map((p) => ({
       participationId: p.id,
       teamName: p.teamName || null,
       position: p.position,
       players: (p.playerIds || []).map((id) => ({ id, name: (idx.get(id) || {}).fullName || '—' })),
-      points: bands && Number.isInteger(p.position) ? pointsForPosition(bands, p.position) : 0,
+      points: bands && Number.isInteger(p.position) && p.position >= 1 ? pointsForEntry(bands, p.position, counts) : 0,
     }))
     .sort((a, b) => a.position - b.position || collator.compare(a.players.map((x) => x.name).join(), b.players.map((x) => x.name).join()));
   return {

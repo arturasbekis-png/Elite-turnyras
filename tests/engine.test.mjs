@@ -234,12 +234,14 @@ test('Validacija: lygios vietos tik kai leidžiama, pagal 1-2-2-4 taisyklę', ()
   assert.ok(validateResults({ tournament: loose, players, participations: wrong }).errors.some((e) => e.code === 'invalid_tie_positions'));
 });
 
-test('Lygios vietos turnyre: visos pasidalinusios komandos gauna taškus už geriausią vietą', () => {
+test('Lygios vietos turnyre: pasidalinusios komandos gauna užimtų vietų taškų vidurkį', () => {
   const d = build({ tournaments: [{ id: 'e1', type: 'elite', allowTies: true, teams: [[1, ['a', 'b']], [2, ['c', 'd']], [2, ['e', 'f']], [4, ['g', 'h']]] }] });
   const { overall } = computeRankings(d, { seasonId: SEASON });
-  assert.equal(row(overall, 'c').points, 40);
-  assert.equal(row(overall, 'e').points, 40);
-  assert.equal(row(overall, 'g').points, 26);
+  assert.equal(row(overall, 'a').points, 50);
+  assert.equal(row(overall, 'c').points, 36, '(40+32)/2');
+  assert.equal(row(overall, 'd').points, 36, 'abu poros nariai gauna pilną sumą');
+  assert.equal(row(overall, 'e').points, 36);
+  assert.equal(row(overall, 'g').points, 26, 'vieta 4 (po praleistos 3) – įprasti taškai');
 });
 
 test('Validacija: finalui taškų nėra – įspėjimas, ne klaida', () => {

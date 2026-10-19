@@ -47,8 +47,11 @@ section from that same config.
   places in the category, tournaments played, then shared position. Names are never a sporting tie-breaker
   (alphabetical order inside a tied group is presentation only).
 * **Tied places inside a tournament:** by default not allowed (positions must be exactly 1..N). If a tournament is
-  flagged "allow shared places", the `1-2-2-4` rule applies: all teams sharing a place get the points of the best
-  place of the group and the next place is skipped (e.g. `5,5,7,7`). Places 9–12 and 13–16 have equal points anyway.
+  flagged "allow shared places", positions follow `1-2-2-4` (e.g. `5,5,7,7`) and the teams sharing a place occupy
+  ALL places of the group and each gets the **average** of those places' points, rounded to 2 decimals (ELITE 5–6:
+  (22+20)/2 = **21**; CHALLENGE 5–8: (18+16+14+12)/4 = **15**). Both teammates get the full amount. The group size is
+  the number of teams entered with that position, so the group must be complete before publishing (3 teams sharing
+  place 5 would give (18+16+14)/3 = 16, not 15). Places 9–12 and 13–16 have equal points anyway.
 * **Movement** compares the table with the table before the latest finalized tournament (derived, no snapshots
   stored). Hidden until two tournaments are finalized.
 
