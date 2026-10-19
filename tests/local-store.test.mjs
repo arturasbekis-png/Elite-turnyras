@@ -72,7 +72,7 @@ test('Vietinis patvirtinimas: taškai teisingi, pranešimas aiškiai sako „TIK
   assert.match(ctl.state.notice.text, /NEPASKELBTI viešai/);
   const { overall } = computeRankings(ctl.state.dataset, { seasonId: SEASON });
   const pts = (n) => overall.find((r) => r.name === `Testinis V${String(n).padStart(2, '0')}`).points;
-  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(pts), [50, 50, 40, 40, 32, 32, 26, 26, 21, 21, 21, 21]);
+  assert.deepEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map(pts), [100, 100, 80, 80, 64, 64, 52, 52, 42, 42, 42, 42]);
   const snapshot = JSON.stringify(overall.map((r) => [r.playerId, r.points]));
   assert.equal(await ctl.finalize(), false, 'antras patvirtinimas atmestas');
   assert.equal(JSON.stringify(computeRankings(ctl.state.dataset, { seasonId: SEASON }).overall.map((r) => [r.playerId, r.points])), snapshot);

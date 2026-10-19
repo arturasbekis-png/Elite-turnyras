@@ -4,6 +4,7 @@
 // Vietinė naršyklės saugykla (localStorage) čia NIEKADA nenaudojama.
 
 import { validateResults } from './engine.js';
+import { SCORING_TABLES, PAIR_CATEGORIES } from './config.js';
 
 export const STATIC_RESULTS_URL = new URL('../data/official-results.json', import.meta.url).href;
 
@@ -42,6 +43,19 @@ export function normalizeStaticResults(doc) {
     (p.playerIds || []).forEach((id) => { if (!playerIds.has(id)) problems.push(`komanda ${p.id}: nežinomas žaidėjas ${id}`); });
   });
   for (const t of tournaments) {
+    if (t.scoringVersion && !SCORING_TABLES[t.scoringVersion]) problems.push(`${t.name || t.id}: nežinoma taškų lentelės versija ${t.scoringVersion}`);
+  }
+  // Rankinis partnerio keitimo paveldėjimo patvirtinimas (kai automatiškai neaišku, kuri ankstesnė pora teikia paveldėjimą).
+  const decisions = [];
+  for (const d of Array.isArray(doc.inheritanceDecisions) ? doc.inheritanceDecisions : []) {
+    const pair = (v) => Array.isArray(v) && v.length === 2 && v[0] !== v[1] && v.every((id) => playerIds.has(id));
+    if (!isObj(d) || !PAIR_CATEGORIES.includes(d.category) || !pair(d.playerIds) || (d.inheritFrom != null && !pair(d.inheritFrom))) {
+      problems.push('netinkamas paveldėjimo sprendimas (inheritanceDecisions)');
+      continue;
+    }
+    decisions.push({ category: d.category, playerIds: [...d.playerIds], inheritFrom: d.inheritFrom ? [...d.inheritFrom] : null, note: d.note ? String(d.note) : '' });
+  }
+  for (const t of tournaments) {
     const parts = participations.filter((p) => p.tournamentId === t.id);
     const result = validateResults({ tournament: t, participations: parts, players });
     result.errors.forEach((e) => problems.push(`${t.name || t.id}: ${e.message}`));
@@ -49,7 +63,7 @@ export function normalizeStaticResults(doc) {
   if (problems.length) throw new Error(`Rezultatų failas netinkamas: ${problems.join('; ')}`);
 
   return {
-    seasons: [], tournaments, players, participations,
+    seasons: [], tournaments, players, participations, inheritanceDecisions: decisions,
     generatedAt: doc.publishedAt || null,
     notes: Array.isArray(doc.notes) ? doc.notes.map(String) : [],
   };

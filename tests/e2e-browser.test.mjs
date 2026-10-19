@@ -140,9 +140,9 @@ test('Neprijungta duomenų bazė: viešas puslapis rodo oficialų failą visiems
   const before = await publicRows(pub);
   assert.equal(before.length, 6, 'ELITE: 6 porų (ne 12 žaidėjų)');
   const pts = officialPoints(before);
-  assert.equal(pts['Emilija P. / Sofija B.'], 50);
-  assert.equal(pts['Evgenija M. / Milda R.'], 26);
-  assert.equal(pts['Danielė Š. / Lea D.'], 21); assert.equal(pts['Ditė / Gabrielė'], 21);
+  assert.equal(pts['Emilija P. / Sofija B.'], 100);
+  assert.equal(pts['Evgenija M. / Milda R.'], 52);
+  assert.equal(pts['Danielė Š. / Lea D.'], 42); assert.equal(pts['Ditė / Gabrielė'], 42);
   assert.equal(await pub.locator('.rrow', { hasText: 'Goda' }).count(), 0, 'CHALLENGE poros ELITE lentelėje nerodomos');
   // CHALLENGE – atskira lentelė; ta pati Lea D. / Danielė Š. pora turi tik CHALLENGE taškus (15), nesumuojama su ELITE
   await pub.goto(`${siteOff}reitingai.html#challenge`);
@@ -355,7 +355,7 @@ test('Rezultatų suvedimas: komandos, taškai iš karto, užblokuotas dvigubas d
   await admin.selectOption('select[data-sel="tournament"]', E1);
   await admin.getByRole('heading', { name: /ELITE #1/ }).waitFor();
 
-  const teams = [['Jonas Jonaitis', 'Petras Petraitis', '1', '50'], ['Antanas Antanaitis', 'Kazys Kazlauskas', '2', '40'], ['Žygimantas Šimkus', 'Rūta Rutkauskaitė', '3', '32'], ['Ąžuolas Ūdrys', 'Eglė Egliūtė', '4', '26']];
+  const teams = [['Jonas Jonaitis', 'Petras Petraitis', '1', '100'], ['Antanas Antanaitis', 'Kazys Kazlauskas', '2', '80'], ['Žygimantas Šimkus', 'Rūta Rutkauskaitė', '3', '64'], ['Ąžuolas Ūdrys', 'Eglė Egliūtė', '4', '52']];
   for (let i = 0; i < teams.length; i += 1) await admin.click('[data-act="add-team"]');
   const rows = admin.locator('#results-table tbody tr');
   assert.equal(await rows.count(), 4);
@@ -381,7 +381,7 @@ test('Rezultatų suvedimas: komandos, taškai iš karto, užblokuotas dvigubas d
   await admin.getByText('Validacija sėkminga').waitFor();
   const preview = await admin.locator('#preview-table').innerText();
   assert.match(preview, /Vieta\s+Žaidėjas 1\s+Žaidėjas 2\s+Taškai porai/i);
-  assert.match(preview, /1\s+Jonas Jonaitis\s+Petras Petraitis\s+50/);
+  assert.match(preview, /1\s+Jonas Jonaitis\s+Petras Petraitis\s+100/);
   await shot(admin, 'admin-rezultatai-perziura');
 
   // Juodraštis
@@ -420,7 +420,7 @@ test('Paskelbimas: abu žaidėjai gauna pilnus taškus, viešas reitingas atsina
   const pub = await newPage(anon);
   await pub.goto(`${site}reitingai.html`);
   await pub.locator('.rrow').first().waitFor();
-  const expected = { 'Jonas Jonaitis / Petras Petraitis': 50, 'Antanas Antanaitis / Kazys Kazlauskas': 40, 'Rūta Rutkauskaitė / Žygimantas Šimkus': 32, 'Eglė Egliūtė / Ąžuolas Ūdrys': 26 };
+  const expected = { 'Jonas Jonaitis / Petras Petraitis': 100, 'Antanas Antanaitis / Kazys Kazlauskas': 80, 'Rūta Rutkauskaitė / Žygimantas Šimkus': 64, 'Eglė Egliūtė / Ąžuolas Ūdrys': 52 };
   const check = async () => {
     const rows = await publicRows(pub);
     assert.equal(rows.length, 4, 'ELITE: 4 poros');
@@ -443,8 +443,8 @@ test('Paskelbimas: abu žaidėjai gauna pilnus taškus, viešas reitingas atsina
 
   // Variklis iš viešų duomenų duoda tą patį
   const ranking = computeRankings(await publicDataset(), { seasonId: '2026-2027' });
-  assert.equal(ranking.overall.find((r) => r.name === 'Jonas Jonaitis').points, 50);
-  assert.equal(ranking.overall.reduce((s, r) => s + r.points, 0), 2 * (50 + 40 + 32 + 26));
+  assert.equal(ranking.overall.find((r) => r.name === 'Jonas Jonaitis').points, 100);
+  assert.equal(ranking.overall.reduce((s, r) => s + r.points, 0), 2 * (100 + 80 + 64 + 52));
   await anon.close();
 });
 
@@ -455,7 +455,7 @@ test('Paskelbtų rezultatų pakartotinis paskelbimas atmetamas; taškai nedubliu
   assert.equal(again.status, 400);
   assert.equal(again.json.message, 'already_finalized');
   const ranking = computeRankings(await publicDataset(), { seasonId: '2026-2027' });
-  assert.equal(ranking.overall.find((r) => r.name === 'Jonas Jonaitis').points, 50);
+  assert.equal(ranking.overall.find((r) => r.name === 'Jonas Jonaitis').points, 100);
 });
 
 test('Pataisymas: vietos sukeičiamos, privaloma priežastis, taškai perskaičiuoti be dvigubo skaičiavimo, įrašas audite', { skip }, async () => {
@@ -467,7 +467,7 @@ test('Pataisymas: vietos sukeičiamos, privaloma priežastis, taškai perskaiči
   await admin.click('[data-act="correct"]');
   await admin.locator('.notice.error', { hasText: 'priežastį' }).waitFor();
   const stillOld = computeRankings(await publicDataset(), { seasonId: '2026-2027' });
-  assert.equal(stillOld.overall.find((r) => r.name === 'Jonas Jonaitis').points, 50, 'be priežasties niekas nepasikeitė');
+  assert.equal(stillOld.overall.find((r) => r.name === 'Jonas Jonaitis').points, 100, 'be priežasties niekas nepasikeitė');
 
   await admin.fill('textarea[data-reason]', 'Neteisingai įvestos 1 ir 2 vietos');
   await admin.click('[data-act="correct"]');
@@ -475,11 +475,11 @@ test('Pataisymas: vietos sukeičiamos, privaloma priežastis, taškai perskaiči
 
   const ranking = computeRankings(await publicDataset(), { seasonId: '2026-2027' });
   const pts = (n) => ranking.overall.find((r) => r.name === n).points;
-  assert.equal(pts('Jonas Jonaitis'), 40, 'Jonas dabar 2 vietoje – 40, o ne 90');
-  assert.equal(pts('Petras Petraitis'), 40);
-  assert.equal(pts('Antanas Antanaitis'), 50);
-  assert.equal(pts('Kazys Kazlauskas'), 50);
-  assert.equal(ranking.overall.reduce((s, r) => s + r.points, 0), 2 * (50 + 40 + 32 + 26), 'bendra suma nepasikeitė – taškai nesidubliuoja');
+  assert.equal(pts('Jonas Jonaitis'), 80, 'Jonas dabar 2 vietoje – 80, o ne 180');
+  assert.equal(pts('Petras Petraitis'), 80);
+  assert.equal(pts('Antanas Antanaitis'), 100);
+  assert.equal(pts('Kazys Kazlauskas'), 100);
+  assert.equal(ranking.overall.reduce((s, r) => s + r.points, 0), 2 * (100 + 80 + 64 + 52), 'bendra suma nepasikeitė – taškai nesidubliuoja');
   assert.equal(owner(`select count(*) from public.participations where tournament_id = '${E1}';`), '4');
   assert.equal(owner(`select revision from public.tournaments where id = '${E1}';`), '2');
 
@@ -494,8 +494,8 @@ test('Pataisymas: vietos sukeičiamos, privaloma priežastis, taškai perskaiči
   await pub.goto(`${site}reitingai.html`);
   await pub.locator('.rrow').first().waitFor();
   const publicNow = Object.fromEntries((await publicRows(pub)).map((r) => [r.name, r.points]));
-  assert.equal(publicNow['Jonas Jonaitis / Petras Petraitis'], 40);
-  assert.equal(publicNow['Antanas Antanaitis / Kazys Kazlauskas'], 50);
+  assert.equal(publicNow['Jonas Jonaitis / Petras Petraitis'], 80);
+  assert.equal(publicNow['Antanas Antanaitis / Kazys Kazlauskas'], 100);
   await anon.close();
 });
 
@@ -519,7 +519,7 @@ test('Dublikatų sujungimas per naršyklę: istorija išlieka, taškai nedubliuo
 
   const ranking = computeRankings(await publicDataset(), { seasonId: '2026-2027' });
   assert.equal(ranking.overall.filter((r) => r.name === 'Petras Petraitis').length, 1);
-  assert.equal(ranking.overall.find((r) => r.name === 'Petras Petraitis').points, 40);
+  assert.equal(ranking.overall.find((r) => r.name === 'Petras Petraitis').points, 80);
 
   // Sujungtas įrašas nebesiūlomas komandų pasirinkime
   await admin.click('[data-act="tab"][data-tab="results"]');

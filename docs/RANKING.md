@@ -32,11 +32,19 @@ disagree and there is no second manually-editable copy of results.
 
 ## Points and rules
 
-Defined once in `ranking/config.js` (`SCORING_TABLES.v1`) and rendered into the public "Reitingavimo taisyklės"
+Defined once in `ranking/config.js` (`SCORING_TABLES`) and rendered into the public "Reitingavimo taisyklės"
 section from that same config.
 
 * The official ranking is by **PAIR**, not by player. One row = one pair (both players shown). A pair's points are awarded **once** per tournament (never doubled, no per-player rows). A player with a different partner forms a **different pair**; points of different partnerships are never merged.
 * There are **two separate tables**: ELITE (ELITE tournaments only) and CHALLENGE (CHALLENGE tournaments only). There is no combined ranking and category points are never added together. FUTURE has no public table (no tournaments yet).
+* **Scoring table v2 (current, `DEFAULT_SCORING_VERSION`)**: ELITE is doubled (1st 100, 2nd 80, 3rd 64, 4th 52, 5th 44, 6th 40, 7th 36, 8th 32, 9–12 20, 13–16 12, participation 4); CHALLENGE and FUTURE are unchanged (CHALLENGE 40/32/26/21/18/16/14/12/8/5/2). The v1 table stays in `SCORING_TABLES` for history. The static results file pins `scoringVersion: "v2"` on each tournament so the points cannot change by accident; the season default is also v2 (`DEFAULT_SEASONS`, `supabase/seed.sql`). **An existing Supabase database keeps its season's `scoring_version` (`v1`) until an admin sets the season to `v2`** (the seed only applies to fresh databases).
+* **Partner change (50 % inheritance)**, computed by `pairLedger` in `ranking/engine.js`, per category and season, tournaments in date order:
+  * a pair that stays together keeps 100 % of its points;
+  * a **new** pair (first tournament in that category) that shares **exactly one** player with exactly **one** earlier pair of the same category inherits `INHERITANCE_RATE` = 50 % of that pair's points accumulated **before** the new pair's first tournament; the earlier pair keeps all its points; new tournament points are added on top;
+  * two brand-new players inherit nothing; ELITE and CHALLENGE never transfer points to each other;
+  * if several earlier pairs qualify (ambiguous), nothing is guessed: the row is flagged "paveldėjimas nepatvirtintas" and a public notice lists the candidates; organisers confirm by adding to `data/official-results.json`: `"inheritanceDecisions": [{ "category": "elite", "playerIds": ["p-a","p-c"], "inheritFrom": ["p-a","p-b"] }]` (or `"inheritFrom": null` = inherit nothing);
+  * inheritance is a pure function of the committed results (nothing is stored), so reloading, recalculating or redeploying can never apply it twice. Two new pairs formed in the same tournament from the same source pair each inherit 50 % of that source's pre-tournament points (the source keeps 100 %).
+  * The Supabase path uses the same engine but has no `inheritanceDecisions` field, so ambiguous cases there stay flagged until the static-file path (or a future DB field) is used.
 * Movement indicators (▲/▼) appear only in a category that has at least two finalized tournaments; with one tournament they are hidden.
 * Only **finalized** tournaments count. Planned / in progress / draft / awaiting confirmation → 0 points.
 * Tie-breakers within a category: more 1st places, then more 2nd places, then more tournaments played; otherwise the same rank (shown with `=`).

@@ -98,6 +98,9 @@ input:focus,select:focus,textarea:focus{outline:2px solid #5d42e8;border-color:#
 .chips{display:flex;gap:5px;flex-wrap:wrap}
 .chip{font-size:11px;font-weight:800;border-radius:999px;padding:3px 8px;background:#eef1f6}
 .chip b{font-weight:1000}
+.chip.inherit{background:#fff4d6;color:#8a5a00}
+.chip.flag{background:#fde7e7;color:#a12626}
+.inherit-row td{background:#fff9e8;font-size:13px}
 .chip.type-elite,.tag.type-elite,.cat-banner.type-elite{background:#f0e7ff;color:#7137c8}
 .chip.type-challenge,.tag.type-challenge,.cat-banner.type-challenge{background:#e4f2ff;color:#0871c9}
 .chip.type-future,.tag.type-future,.cat-banner.type-future{background:#e5f8ec;color:#158640}
