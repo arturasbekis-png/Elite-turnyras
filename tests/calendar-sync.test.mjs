@@ -50,7 +50,7 @@ test('Renginių ID unikalūs, datos didėjančios ir sezono ribose', () => {
 
 test('index.html: registracijos nuorodos nepakeistos struktūra ir turi saugius atributus', () => {
   const links = [...html.matchAll(/<a class="register" href="([^"]+)" target="_blank" rel="noopener noreferrer">/g)].map((m) => m[1]);
-  assert.equal(links.length, 2, 'šiuo metu atviros dvi registracijos (ELITE #2 ir CHALLENGE #2)');
+  assert.equal(links.length, 3, 'šiuo metu atviros trys registracijos (ELITE #2, CHALLENGE #2 ir FUTURE #2)');
   links.forEach((l) => assert.match(l, /^https:\/\/forms\.cloud\.microsoft\//));
   assert.ok(html.includes('Registracija uždaryta'), 'uždarytos registracijos išliko');
 });
