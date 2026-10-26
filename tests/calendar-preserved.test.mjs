@@ -41,7 +41,7 @@ test('Visos ankstesnės nuorodos (registracija ir kt.) išlikusios; naujos tik �
   const after = hrefs(current);
   for (const h of before) assert.ok(after.includes(h), `dingo nuoroda: ${h}`);
   const added = after.filter((h) => !before.includes(h));
-  assert.ok(added.every((h) => h === './' || h === 'reitingai.html'), `netikėtos naujos nuorodos: ${added.join(', ')}`);
+  assert.ok(added.every((h) => h === './' || h === 'reitingai.html' || h === 'privatumas.html'), `netikėtos naujos nuorodos: ${added.join(', ')}`);
   assert.ok(after.some((h) => /forms\.office\.com|forms\.cloud\.microsoft/.test(h)), 'registracijos forma išlikusi');
 });
 

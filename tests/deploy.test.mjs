@@ -34,7 +34,7 @@ const walk = (dir) => readdirSync(dir).flatMap((name) => {
   return statSync(p).isDirectory() ? walk(p) : [p];
 });
 
-const PAGES = ['index.html', 'reitingai.html', 'reitingai-admin.html'];
+const PAGES = ['index.html', 'reitingai.html', 'reitingai-admin.html', 'privatumas.html'];
 
 test('M: visi puslapiai, stiliai ir JS moduliai pasiekiami po /Elite-turnyras/ keliu', async () => {
   const { server, base } = await startServer();
