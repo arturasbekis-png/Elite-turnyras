@@ -642,10 +642,17 @@ test('Mobilus išdėstymas (360 ir 390 px): porų lentelės be horizontalaus sli
   const page = await newPage(context);
   await page.goto(`${siteOff}index.html`);
   const live = await page.evaluate(() => [...document.querySelectorAll('a.register[href], .register[href]')].map((a) => a.getAttribute('href')));
-  const source = [...readFileSync(join(root, 'index.html'), 'utf8').matchAll(/<a[^>]*class="register"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(source.length >= 2, 'kalendoriuje yra registracijos nuorodų (FUTURE #2 ir reitingai)');
+  const source = [...readFileSync(join(root, 'index.html'), 'utf8').matchAll(/<a[^>]*class="register[^"]*"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(source.length >= 5, 'kalendoriuje yra registracijos nuorodų (FUTURE #2, trys gruodžio 13 d. ir reitingai)');
   assert.deepEqual(live, source);
   assert.ok(source.some((h) => h === 'reitingai.html'));
+  // „Naujametinis turnyras“: paspaudus atsiveria trys registracijos nuorodos, be horizontalaus slinkimo
+  const joint = page.locator('article.joint');
+  assert.equal(await joint.locator('.reg-list a').first().isVisible(), false, 'nuorodos paslėptos, kol nepaspausta');
+  await joint.locator('summary').click();
+  assert.equal(await joint.locator('.reg-list a:visible').count(), 3);
+  assert.deepEqual(await joint.locator('.reg-list a').allInnerTexts(), ['🟢 FUTURE #3 · 11:00–13:00', '🔵 CHALLENGE #3 · 13:00–15:00', '🟣 ELITE #3 · 15:00–17:00']);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth) <= 1, 'kalendorius telpa 390 px');
   await context.close();
 });
 
@@ -894,7 +901,15 @@ test('Egzistuojantis kalendorius ir registracijos nuorodos puslapyje nepakito (n
   const context = await browser.newContext();
   const page = await newPage(context);
   await page.goto(`${site}index.html`);
-  assert.equal(await page.locator('article.event').count(), 19);
+  assert.equal(await page.locator('article.event').count(), 17, '16 atskirų + viena jungtinė kortelė');
+  // filtrai: jungtinė kortelė matoma po ELITE, CHALLENGE ir FUTURE
+  for (const f of ['elite', 'challenge', 'start']) {
+    await page.click(`.filter[data-filter="${f}"]`);
+    assert.equal(await page.locator('article.joint').isVisible(), true, `filtras ${f}`);
+  }
+  await page.click('.filter[data-filter="final"]');
+  assert.equal(await page.locator('article.joint').isVisible(), false);
+  await page.click('.filter[data-filter="all"]');
   const hrefs = await page.evaluate(() => [...document.querySelectorAll('a[href]')].map((a) => a.getAttribute('href')));
   assert.ok(hrefs.some((h) => /forms\.office\.com|forms\.cloud\.microsoft/.test(h)), 'registracijos nuoroda yra');
   assert.ok(hrefs.includes('reitingai.html'), 'REITINGAI nuoroda yra');

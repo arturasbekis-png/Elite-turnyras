@@ -27,6 +27,13 @@ body{min-height:100vh;background:radial-gradient(circle at 15% 15%,rgba(0,210,25
 .badge{font-size:11px;font-weight:1000;border-radius:999px;padding:6px 9px;background:#eef1f6}
 .elite .badge{background:#f0e7ff;color:#7137c8} .challenge .badge{background:#e4f2ff;color:#0871c9} .start .badge{background:#e5f8ec;color:#158640} .final .badge{background:#fff1cf;color:#a66a00}
 .register{display:block;width:100%;border:0;text-align:center;text-decoration:none;margin-top:13px;padding:12px;border-radius:11px;font-weight:1000;background:linear-gradient(90deg,#f5c400,#ff8a00);color:#071d3b;cursor:pointer;font-size:15px}
+.event.joint{border-left-color:#f5a400}
+.joint .badge{background:#e5f8ec;color:#158640}
+.sessions{list-style:none;margin:12px 0 0;padding:0;display:grid;gap:6px;font-size:14px;color:#33415a}
+.joint-reg summary{list-style:none} .joint-reg summary::-webkit-details-marker{display:none}
+.joint-reg summary::after{content:" ▾"} .joint-reg[open] summary::after{content:" ▴"}
+.reg-list{display:grid;gap:8px;margin-top:8px}
+.register.sub{margin-top:0;padding:11px;font-size:14px}
 .pending{background:#e9edf2;color:#5e6877;cursor:not-allowed;opacity:1}
 .closed{background:#e9edf2;color:#8a3a3a;cursor:not-allowed;opacity:1}
 .elite .closed-badge,.challenge .closed-badge{background:#fde7e7;color:#a12626}
@@ -48,7 +55,7 @@ body{min-height:100vh;background:radial-gradient(circle at 15% 15%,rgba(0,210,25
 <div class="season">2026–2027</div>
 </header>
 <nav class="mainnav" aria-label="Pagrindinė navigacija"><a href="./" class="active" aria-current="page">KALENDORIUS</a><a href="reitingai.html">REITINGAI</a></nav>
-<section class="intro"><strong>TURNYRŲ KALENDORIUS</strong><span>19 turnyrų · visi turnyrai prasideda 11:00</span></section>
+<section class="intro"><strong>TURNYRŲ KALENDORIUS</strong><span>19 turnyrų · gruodžio 13 d. – jungtinė diena (11:00–17:00)</span></section>
 <nav class="filters">
 <button class="filter active" data-filter="all">VISI</button>
 <button class="filter" data-filter="elite">🟣 ELITE</button>
@@ -116,35 +123,27 @@ body{min-height:100vh;background:radial-gradient(circle at 15% 15%,rgba(0,210,25
   </div>
   <a class="register" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAN__iaUIAhUOTJCUkY4MTgySUxHVFAxOElKQjE3R0lYTy4u&lang=lt-LT" target="_blank" rel="noopener noreferrer">REGISTRUOTIS</a>
 </article>
-<article class="event start" data-type="start">
+<article class="event joint" data-type="elite challenge start">
   <div class="event-top">
     <div>
-      <div class="event-name">🟢 FUTURE #3</div>
-      <div class="event-date">Gruodžio 13 d. · <strong>11:00</strong>–13:00 · jungtinė diena</div>
+      <div class="event-name">🎆 NAUJAMETINIS TURNYRAS</div>
+      <div class="event-date">Gruodžio 13 d. · <strong>11:00</strong>–17:00 · jungtinė diena</div>
     </div>
-    <span class="badge">FUTURE</span>
+    <span class="badge">REGISTRACIJA ATVIRA</span>
   </div>
-  <button class="register pending" type="button">REGISTRUOTIS</button>
-</article>
-<article class="event challenge" data-type="challenge">
-  <div class="event-top">
-    <div>
-      <div class="event-name">🔵 CHALLENGE #3</div>
-      <div class="event-date">Gruodžio 13 d. · <strong>13:00</strong>–15:00 · jungtinė diena</div>
+  <ul class="sessions">
+    <li class="session" data-type="start">🟢 FUTURE #3 · <strong>11:00</strong>–13:00</li>
+    <li class="session" data-type="challenge">🔵 CHALLENGE #3 · <strong>13:00</strong>–15:00</li>
+    <li class="session" data-type="elite">🟣 ELITE #3 · <strong>15:00</strong>–17:00</li>
+  </ul>
+  <details class="joint-reg">
+    <summary class="register">REGISTRUOTIS</summary>
+    <div class="reg-list">
+      <a class="register sub start" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAN__iaUIAhUMzY2OEhRNU1PQkQzM1NGWk1PUzA2UTAwTC4u" target="_blank" rel="noopener noreferrer">🟢 FUTURE #3 · 11:00–13:00</a>
+      <a class="register sub challenge" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAN__iaUIAhUQ1MwREQ4VkZCRTFDS0NRWFlJVzRRNzFSVC4u" target="_blank" rel="noopener noreferrer">🔵 CHALLENGE #3 · 13:00–15:00</a>
+      <a class="register sub elite" href="https://forms.cloud.microsoft/Pages/ResponsePage.aspx?id=DQSIkWdsW0yxEjajBLZtrQAAAAAAAAAAAAN__iaUIAhUN1pZQzc4Mko4UENTQ1AxWjhWQ01RWjg2My4u" target="_blank" rel="noopener noreferrer">🟣 ELITE #3 · 15:00–17:00</a>
     </div>
-    <span class="badge">CHALLENGE</span>
-  </div>
-  <button class="register pending" type="button">REGISTRUOTIS</button>
-</article>
-<article class="event elite" data-type="elite">
-  <div class="event-top">
-    <div>
-      <div class="event-name">🟣 ELITE #3</div>
-      <div class="event-date">Gruodžio 13 d. · <strong>15:00</strong>–17:00 · jungtinė diena</div>
-    </div>
-    <span class="badge">ELITE</span>
-  </div>
-  <button class="register pending" type="button">REGISTRUOTIS</button>
+  </details>
 </article>
 <article class="event elite" data-type="elite">
   <div class="event-top">
@@ -248,7 +247,6 @@ body{min-height:100vh;background:radial-gradient(circle at 15% 15%,rgba(0,210,25
 </article></section>
 <section class="ranking"><h2>🏆 SEZONO ĮSKAITA</h2><p>ELITE ir CHALLENGE porų reitingai bei turnyrų rezultatai.</p><a class="register" href="reitingai.html">PERŽIŪRĖTI REITINGUS</a></section>
 <div class="note"><strong>ELITE #1, CHALLENGE #1, ELITE #2 ir CHALLENGE #2:</strong> registracija uždaryta.</div>
-<div class="note"><strong>Gruodžio 13 d. – jungtinė diena:</strong> 11:00–13:00 FUTURE #3, 13:00–15:00 CHALLENGE #3, 15:00–17:00 ELITE #3. Atskirų ELITE #3 (lapkričio 29 d.) ir CHALLENGE #3 (gruodžio 6 d.) dienų nebėra.</div>
 <div class="note"><a href="privatumas.html" style="color:inherit">Privatumo pranešimas</a></div>
 </main></div>
 <script>
@@ -257,7 +255,7 @@ button.addEventListener('click',function(){
 document.querySelectorAll('.filter').forEach(function(b){b.classList.remove('active')});
 button.classList.add('active');
 var type=button.dataset.filter;
-document.querySelectorAll('.event').forEach(function(event){event.style.display=(type==='all'||event.dataset.type===type)?'block':'none';});
+document.querySelectorAll('.event').forEach(function(event){event.style.display=(type==='all'||(' '+event.dataset.type+' ').indexOf(' '+type+' ')>-1)?'block':'none';});
 });
 });
 document.querySelectorAll('.pending').forEach(function(button){
