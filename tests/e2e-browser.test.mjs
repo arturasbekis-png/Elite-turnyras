@@ -643,7 +643,7 @@ test('Mobilus išdėstymas (360 ir 390 px): porų lentelės be horizontalaus sli
   await page.goto(`${siteOff}index.html`);
   const live = await page.evaluate(() => [...document.querySelectorAll('a.register[href], .register[href]')].map((a) => a.getAttribute('href')));
   const source = [...readFileSync(join(root, 'index.html'), 'utf8').matchAll(/<a[^>]*class="register"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(source.length >= 3, 'kalendoriuje yra registracijos nuorodų');
+  assert.ok(source.length >= 2, 'kalendoriuje yra registracijos nuorodų (FUTURE #2 ir reitingai)');
   assert.deepEqual(live, source);
   assert.ok(source.some((h) => h === 'reitingai.html'));
   await context.close();

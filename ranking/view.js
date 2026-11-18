@@ -42,7 +42,8 @@ export function mergeTournaments(dbTournaments = [], staticEvents = SEASON_EVENT
   for (const e of staticEvents) {
     if (!byId.has(e.id)) merged.push({ ...e });
   }
-  return merged.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : String(a.id).localeCompare(String(b.id))));
+  const key = (t) => `${t.date}|${t.startTime || ''}|${t.id}`;
+  return merged.sort((a, b) => (key(a) < key(b) ? -1 : key(a) > key(b) ? 1 : 0));
 }
 
 export function mergeSeasons(dbSeasons = [], defaults = DEFAULT_SEASONS) {

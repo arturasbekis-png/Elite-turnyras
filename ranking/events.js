@@ -5,7 +5,8 @@
 
 export const SEASON_ID = '2026-2027';
 
-// [tipas, numeris, ISO data, kalendoriaus datos tekstas (kaip index.html)]
+// [tipas, numeris, ISO data, kalendoriaus datos tekstas (kaip index.html), pradžia, pabaiga (neprivaloma)]
+// Gruodžio 13 d. – jungtinė diena: FUTURE 11:00–13:00, CHALLENGE 13:00–15:00, ELITE 15:00–17:00.
 const CALENDAR = [
   ['elite', 1, '2026-10-11', 'Spalio 11 d.'],
   ['challenge', 1, '2026-10-18', 'Spalio 18 d.'],
@@ -13,9 +14,9 @@ const CALENDAR = [
   ['elite', 2, '2026-11-08', 'Lapkričio 8 d.'],
   ['challenge', 2, '2026-11-15', 'Lapkričio 15 d.'],
   ['future', 2, '2026-11-22', 'Lapkričio 22 d.'],
-  ['elite', 3, '2026-11-29', 'Lapkričio 29 d.'],
-  ['challenge', 3, '2026-12-06', 'Gruodžio 6 d.'],
-  ['future', 3, '2026-12-13', 'Gruodžio 13 d.'],
+  ['future', 3, '2026-12-13', 'Gruodžio 13 d.', '11:00', '13:00'],
+  ['challenge', 3, '2026-12-13', 'Gruodžio 13 d.', '13:00', '15:00'],
+  ['elite', 3, '2026-12-13', 'Gruodžio 13 d.', '15:00', '17:00'],
   ['elite', 4, '2027-01-10', 'Sausio 10 d.'],
   ['challenge', 4, '2027-01-17', 'Sausio 17 d.'],
   ['future', 4, '2027-01-24', 'Sausio 24 d.'],
@@ -35,14 +36,15 @@ export function tournamentId(seasonId, type, number) {
   return number == null ? `${seasonId}-${type}` : `${seasonId}-${type}-${number}`;
 }
 
-export const SEASON_EVENTS = CALENDAR.map(([type, number, date, calendarDateText]) => ({
+export const SEASON_EVENTS = CALENDAR.map(([type, number, date, calendarDateText, startTime = '11:00', endTime = null]) => ({
   id: tournamentId(SEASON_ID, type, number),
   seasonId: SEASON_ID,
   type,
   number,
   name: number == null ? NAMES[type] : `${NAMES[type]} #${number}`,
   date,
-  startTime: '11:00',
+  startTime,
+  endTime,
   calendarDateText,
   status: 'planned',
   allowTies: false,

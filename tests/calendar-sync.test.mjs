@@ -50,7 +50,8 @@ test('Renginių ID unikalūs, datos didėjančios ir sezono ribose', () => {
 
 test('index.html: registracijos nuorodos nepakeistos struktūra ir turi saugius atributus', () => {
   const links = [...html.matchAll(/<a class="register" href="([^"]+)" target="_blank" rel="noopener noreferrer">/g)].map((m) => m[1]);
-  assert.equal(links.length, 3, 'šiuo metu atviros trys registracijos (ELITE #2, CHALLENGE #2 ir FUTURE #2)');
+  assert.equal(links.length, 1, 'šiuo metu atvira tik FUTURE #2 registracija (ELITE #2 ir CHALLENGE #2 uždarytos)');
+  assert.ok(!/ELITE #2[\s\S]{0,400}?<a class="register"/.test(html.split('ELITE #3')[0].split('FUTURE #2')[0].slice(html.indexOf('ELITE #2'))), 'ELITE #2 be registracijos nuorodos');
   links.forEach((l) => assert.match(l, /^https:\/\/forms\.cloud\.microsoft\//));
   assert.ok(html.includes('Registracija uždaryta'), 'uždarytos registracijos išliko');
 });
@@ -58,4 +59,13 @@ test('index.html: registracijos nuorodos nepakeistos struktūra ir turi saugius 
 test('index.html turi REITINGAI navigaciją ir nuorodą į reitingų puslapį', () => {
   assert.match(html, /<a href="reitingai\.html"[^>]*>[^<]*REITINGAI/);
   assert.ok(!html.includes('prijungsime kitame etape'), 'senas „kitame etape“ tekstas pakeistas');
+});
+
+test('Gruodžio 13 d. jungtinė diena: FUTURE 11–13, CHALLENGE 13–15, ELITE 15–17; atskirų lapkričio 29 / gruodžio 6 dienų nebėra', () => {
+  const day = SEASON_EVENTS.filter((e) => e.date === '2026-12-13').map((e) => [e.name, e.startTime, e.endTime]);
+  assert.deepEqual(day, [['FUTURE #3', '11:00', '13:00'], ['CHALLENGE #3', '13:00', '15:00'], ['ELITE #3', '15:00', '17:00']]);
+  assert.ok(!SEASON_EVENTS.some((e) => e.date === '2026-11-29' || e.date === '2026-12-06'));
+  assert.ok(html.includes('jungtinė diena') && !html.includes('Lapkričio 29 d. ·') && !html.includes('Gruodžio 6 d. ·'));
+  const closed = (name) => new RegExp(`${name}</div>[\\s\\S]*?REGISTRACIJA UŽDARYTA`).test(html);
+  assert.ok(closed('ELITE #2') && closed('CHALLENGE #2'), 'ELITE #2 ir CHALLENGE #2 registracija uždaryta');
 });
