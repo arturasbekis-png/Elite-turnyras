@@ -9,12 +9,22 @@ const root = join(dirname(fileURLToPath(import.meta.url)), '..');
 const html = readFileSync(join(root, 'index.html'), 'utf8');
 
 function parseCalendar(source) {
-  const re = /<article class="event [^"]*" data-type="([^"]+)">[\s\S]*?<div class="event-name">([^<]+)<\/div>\s*<div class="event-date">([^<]*?) · <strong>([^<]+)<\/strong>/g;
+  const re = /<article class="event ([^"]*)" data-type="([^"]+)">([\s\S]*?)<\/article>/g;
   const typeMap = { start: 'future' };
   const events = [];
   let m;
   while ((m = re.exec(source))) {
-    events.push({ type: typeMap[m[1]] || m[1], name: m[2].replace(/^[^A-Za-z]+/, '').trim(), dateText: m[3].trim(), time: m[4].trim() });
+    const [, cls, type, body] = m;
+    if (cls.split(' ').includes('joint')) {
+      // Jungtinė diena (gruodžio 13 d.): viena kortelė, trys seansai
+      const dateText = /<div class="event-date">([^<]*?) · <strong>/.exec(body)[1].trim();
+      for (const s of body.matchAll(/<li class="session" data-type="([^"]+)">[^A-Z]*([A-Z]+ #\d) · <strong>([^<]+)<\/strong>/g)) {
+        events.push({ type: typeMap[s[1]] || s[1], name: s[2], dateText, time: s[3] });
+      }
+      continue;
+    }
+    const d = /<div class="event-name">([^<]+)<\/div>\s*<div class="event-date">([^<]*?) · <strong>([^<]+)<\/strong>/.exec(body);
+    events.push({ type: typeMap[type] || type, name: d[1].replace(/^[^A-Za-z]+/, '').trim(), dateText: d[2].trim(), time: d[3].trim() });
   }
   return events;
 }
@@ -61,11 +71,19 @@ test('index.html turi REITINGAI navigaciją ir nuorodą į reitingų puslapį', 
   assert.ok(!html.includes('prijungsime kitame etape'), 'senas „kitame etape“ tekstas pakeistas');
 });
 
-test('Gruodžio 13 d. jungtinė diena: FUTURE 11–13, CHALLENGE 13–15, ELITE 15–17; atskirų lapkričio 29 / gruodžio 6 dienų nebėra', () => {
+test('Gruodžio 13 d. „Naujametinis turnyras“: viena kortelė, trys atvirų registracijų nuorodos (FUTURE, CHALLENGE, ELITE); atskirų lapkričio 29 / gruodžio 6 dienų nebėra', () => {
   const day = SEASON_EVENTS.filter((e) => e.date === '2026-12-13').map((e) => [e.name, e.startTime, e.endTime]);
   assert.deepEqual(day, [['FUTURE #3', '11:00', '13:00'], ['CHALLENGE #3', '13:00', '15:00'], ['ELITE #3', '15:00', '17:00']]);
   assert.ok(!SEASON_EVENTS.some((e) => e.date === '2026-11-29' || e.date === '2026-12-06'));
-  assert.ok(html.includes('jungtinė diena') && !html.includes('Lapkričio 29 d. ·') && !html.includes('Gruodžio 6 d. ·'));
+  assert.ok(!html.includes('Lapkričio 29 d. ·') && !html.includes('Gruodžio 6 d. ·'));
+  const card = /<article class="event joint"[\s\S]*?<\/article>/.exec(html)[0];
+  assert.ok(card.includes('NAUJAMETINIS TURNYRAS') && card.includes('REGISTRACIJA ATVIRA') && card.includes('<details class="joint-reg">'));
+  const links = [...card.matchAll(/<a class="register sub (\w+)" href="([^"]+)" target="_blank" rel="noopener noreferrer">([^<]+)<\/a>/g)];
+  assert.deepEqual(links.map((l) => l[1]), ['start', 'challenge', 'elite']);
+  assert.deepEqual(links.map((l) => l[3].replace(/^\S+ /, '')), ['FUTURE #3 · 11:00–13:00', 'CHALLENGE #3 · 13:00–15:00', 'ELITE #3 · 15:00–17:00']);
+  assert.equal(new Set(links.map((l) => l[2])).size, 3, 'trys skirtingos formos');
+  links.forEach((l) => assert.match(l[2], /^https:\/\/forms\.cloud\.microsoft\/Pages\/ResponsePage\.aspx\?id=[\w-]+$/));
+  assert.match(card, /data-type="elite challenge start"/, 'rodoma po visais trimis filtrais');
   const closed = (name) => new RegExp(`${name}</div>[\\s\\S]*?REGISTRACIJA UŽDARYTA`).test(html);
   assert.ok(closed('ELITE #2') && closed('CHALLENGE #2'), 'ELITE #2 ir CHALLENGE #2 registracija uždaryta');
 });
