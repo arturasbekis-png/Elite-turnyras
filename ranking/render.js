@@ -152,7 +152,7 @@ export function renderTournamentList({ tournaments, teamCounts, seasonId, filter
     const note = t.type === 'final' ? '<span class="muted">Taškų sistema nenustatyta</span>' : '';
     return `<article class="tcard ${typeClass(t.type)}">
       <div class="ttop"><div><div class="tname">${esc(info.emoji || '')} ${esc(t.name)}</div>
-      <div class="tdate">${esc(formatDate(t.date))}${t.startTime ? ` · <strong>${esc(t.startTime)}</strong>` : ''}</div></div>${statusBadge(t.status)}</div>
+      <div class="tdate">${esc(formatDate(t.date))}${t.startTime ? ` · <strong>${esc(t.startTime)}</strong>${t.endTime ? `–${esc(t.endTime)}` : ''}` : ''}</div></div>${statusBadge(t.status)}</div>
       <div class="tmeta"><span>Porų: <b>${teams == null ? '—' : esc(teams)}</b></span>${note}${t.revision > 1 ? `<span class="muted">Pataisyta (v${esc(t.revision)})</span>` : ''}</div>
       <a class="btn" href="#turnyrai/${encodeURIComponent(t.id)}${seasonId ? `?s=${encodeURIComponent(seasonId)}` : ''}">${t.status === 'finalized' ? 'Pilni rezultatai' : 'Informacija'}</a>
     </article>`;
@@ -192,7 +192,7 @@ export function renderTournamentDetail({ view, backHref }) {
   }
   return `<a class="back" href="${esc(backHref)}">← Visi turnyrai</a>
     <article class="tdetail ${typeClass(t.type)}">
-      <div class="ttop"><div><h2>${esc(info.emoji || '')} ${esc(t.name)}</h2><div class="tdate">${esc(formatDate(t.date))}${t.startTime ? ` · ${esc(t.startTime)}` : ''}</div></div>${statusBadge(t.status)}</div>
+      <div class="ttop"><div><h2>${esc(info.emoji || '')} ${esc(t.name)}</h2><div class="tdate">${esc(formatDate(t.date))}${t.startTime ? ` · ${esc(t.startTime)}${t.endTime ? `–${esc(t.endTime)}` : ''}` : ''}</div></div>${statusBadge(t.status)}</div>
       ${body}
     </article>`;
 }

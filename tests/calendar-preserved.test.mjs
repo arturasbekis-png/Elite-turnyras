@@ -28,18 +28,27 @@ const section = (html, open) => {
 };
 const hrefs = (html) => [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
 
-test('Kalendoriaus blokas (visi 19 renginių, datos, ženkleliai, registracijos mygtukai) nepakito', { skip }, () => {
+// Sąmoningai pakeisti renginiai (2026-11-18): ELITE #2 ir CHALLENGE #2 registracija uždaryta,
+// o ELITE #3, CHALLENGE #3 ir FUTURE #3 sujungti į vieną dieną (gruodžio 13 d.). Kiti renginiai turi likti nepakitę.
+const CHANGED = ['ELITE #2', 'CHALLENGE #2', 'ELITE #3', 'CHALLENGE #3', 'FUTURE #3'];
+const articles = (block) => [...block.matchAll(/<article class="event [\s\S]*?<\/article>/g)].map((m) => m[0]);
+const nameOf = (a) => (/<div class="event-name">[^<]*?(\b(?:ELITE|CHALLENGE|FUTURE) #\d|BEACH LEAGUE FINAL)/.exec(a) || [])[1];
+
+test('Kalendoriaus blokas: 19 renginių, nepakeisti renginiai (išskyrus sąmoningai pakeistus) nepakito', { skip }, () => {
   const before = section(base.html, '<section class="schedule">');
   const after = section(current, '<section class="schedule">');
   assert.ok(before && after);
-  assert.equal(after, before, `kalendoriaus HTML skiriasi nuo ${base.ref}`);
-  assert.equal((after.match(/<article class="event /g) || []).length, 19);
+  assert.equal(articles(after).length, 19);
+  const keep = (list) => list.filter((a) => !CHANGED.includes(nameOf(a)));
+  assert.deepEqual(keep(articles(after)), keep(articles(before)), `nepakeisti renginiai skiriasi nuo ${base.ref}`);
+  assert.equal(keep(articles(after)).length, 14);
 });
 
-test('Visos ankstesnės nuorodos (registracija ir kt.) išlikusios; naujos tik į reitingus', { skip }, () => {
+test('Ankstesnės nuorodos išlikusios (išskyrus uždarytų ELITE #2 ir CHALLENGE #2 registracijas); naujos tik į reitingus', { skip }, () => {
   const before = hrefs(base.html);
   const after = hrefs(current);
-  for (const h of before) assert.ok(after.includes(h), `dingo nuoroda: ${h}`);
+  const closedEvents = articles(base.html).filter((a) => ['ELITE #2', 'CHALLENGE #2'].includes(nameOf(a))).flatMap((a) => hrefs(a));
+  for (const h of before) assert.ok(after.includes(h) || closedEvents.includes(h), `dingo nuoroda: ${h}`);
   const added = after.filter((h) => !before.includes(h));
   assert.ok(added.every((h) => h === './' || h === 'reitingai.html' || h === 'privatumas.html'), `netikėtos naujos nuorodos: ${added.join(', ')}`);
   assert.ok(after.some((h) => /forms\.office\.com|forms\.cloud\.microsoft/.test(h)), 'registracijos forma išlikusi');
