@@ -30,7 +30,7 @@ const hrefs = (html) => [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
 
 // Sąmoningai pakeisti renginiai (2026-11-18): ELITE #2 ir CHALLENGE #2 registracija uždaryta,
 // o ELITE #3, CHALLENGE #3 ir FUTURE #3 sujungti į vieną kortelę „Naujametinis turnyras“ (gruodžio 13 d.). Kiti renginiai turi likti nepakitę.
-const CHANGED = ['ELITE #2', 'CHALLENGE #2', 'ELITE #3', 'CHALLENGE #3', 'FUTURE #3'];
+const CHANGED = ['ELITE #2', 'CHALLENGE #2', 'FUTURE #2', 'ELITE #3', 'CHALLENGE #3', 'FUTURE #3'];
 const articles = (block) => [...block.matchAll(/<article class="event [\s\S]*?<\/article>/g)].map((m) => m[0]);
 const isJoint = (a) => /^<article class="event joint"/.test(a);
 const nameOf = (a) => (/<div class="event-name">[^<]*?(\b(?:ELITE|CHALLENGE|FUTURE) #\d|BEACH LEAGUE FINAL)/.exec(a) || [])[1];
@@ -43,13 +43,13 @@ test('Kalendoriaus blokas: 19 renginių, nepakeisti renginiai (išskyrus sąmoni
   assert.equal(articles(after).filter(isJoint).length, 1);
   const keep = (list) => list.filter((a) => !isJoint(a) && !CHANGED.includes(nameOf(a)));
   assert.deepEqual(keep(articles(after)), keep(articles(before)), `nepakeisti renginiai skiriasi nuo ${base.ref}`);
-  assert.equal(keep(articles(after)).length, 14);
+  assert.equal(keep(articles(after)).length, 13);
 });
 
-test('Ankstesnės nuorodos išlikusios (išskyrus uždarytų ELITE #2 ir CHALLENGE #2 registracijas); naujos tik į reitingus', { skip }, () => {
+test('Ankstesnės nuorodos išlikusios (išskyrus uždarytų ELITE #2, CHALLENGE #2 ir FUTURE #2 registracijas); naujos tik į reitingus', { skip }, () => {
   const before = hrefs(base.html);
   const after = hrefs(current);
-  const closedEvents = articles(base.html).filter((a) => ['ELITE #2', 'CHALLENGE #2'].includes(nameOf(a))).flatMap((a) => hrefs(a));
+  const closedEvents = articles(base.html).filter((a) => ['ELITE #2', 'CHALLENGE #2', 'FUTURE #2'].includes(nameOf(a))).flatMap((a) => hrefs(a));
   for (const h of before) assert.ok(after.includes(h) || closedEvents.includes(h), `dingo nuoroda: ${h}`);
   const added = after.filter((h) => !before.includes(h));
   const newForms = added.filter((h) => /^https:\/\/forms\.cloud\.microsoft\/Pages\/ResponsePage\.aspx\?id=/.test(h));
@@ -62,5 +62,5 @@ test('Filtrų ir kitų puslapio skriptų turinys nepakito', { skip }, () => {
   const script = (html) => (html.match(/<script>[\s\S]*?<\/script>/) || [''])[0];
   // Vienintelis leistinas pakeitimas: filtras atpažįsta kelis tipus (kortelė „Naujametinis turnyras“ rodoma po ELITE, CHALLENGE ir FUTURE).
   const norm = (t) => t.replace(/\(type==='all'\|\|\(' '\+event\.dataset\.type\+' '\)\.indexOf\(' '\+type\+' '\)>-1\)/, "(type==='all'||event.dataset.type===type)");
-  assert.equal(norm(script(current)), script(base.html));
+  assert.equal(norm(script(current)), norm(script(base.html)));
 });

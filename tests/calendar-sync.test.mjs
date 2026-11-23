@@ -60,10 +60,12 @@ test('Renginių ID unikalūs, datos didėjančios ir sezono ribose', () => {
 
 test('index.html: registracijos nuorodos nepakeistos struktūra ir turi saugius atributus', () => {
   const links = [...html.matchAll(/<a class="register" href="([^"]+)" target="_blank" rel="noopener noreferrer">/g)].map((m) => m[1]);
-  assert.equal(links.length, 1, 'šiuo metu atvira tik FUTURE #2 registracija (ELITE #2 ir CHALLENGE #2 uždarytos)');
+  assert.equal(links.length, 0, 'atskirų renginių registracijos uždarytos (ELITE #2, CHALLENGE #2, FUTURE #2); atvira tik „Naujametinio turnyro“ kortelė');
   assert.ok(!/ELITE #2[\s\S]{0,400}?<a class="register"/.test(html.split('ELITE #3')[0].split('FUTURE #2')[0].slice(html.indexOf('ELITE #2'))), 'ELITE #2 be registracijos nuorodos');
   links.forEach((l) => assert.match(l, /^https:\/\/forms\.cloud\.microsoft\//));
   assert.ok(html.includes('Registracija uždaryta'), 'uždarytos registracijos išliko');
+  const closedFuture2 = /FUTURE #2<\/div>[\s\S]*?<span class="badge closed-badge">REGISTRACIJA UŽDARYTA<\/span>[\s\S]*?<button class="register closed"[^>]*disabled/.exec(html);
+  assert.ok(closedFuture2 && closedFuture2[0].length < 600, 'FUTURE #2 (lapkričio 22 d.) registracija uždaryta');
 });
 
 test('index.html turi REITINGAI navigaciją ir nuorodą į reitingų puslapį', () => {

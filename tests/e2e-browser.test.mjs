@@ -643,7 +643,7 @@ test('Mobilus išdėstymas (360 ir 390 px): porų lentelės be horizontalaus sli
   await page.goto(`${siteOff}index.html`);
   const live = await page.evaluate(() => [...document.querySelectorAll('a.register[href], .register[href]')].map((a) => a.getAttribute('href')));
   const source = [...readFileSync(join(root, 'index.html'), 'utf8').matchAll(/<a[^>]*class="register[^"]*"[^>]*href="([^"]+)"/g)].map((m) => m[1]);
-  assert.ok(source.length >= 5, 'kalendoriuje yra registracijos nuorodų (FUTURE #2, trys gruodžio 13 d. ir reitingai)');
+  assert.ok(source.length >= 4, 'kalendoriuje yra registracijos nuorodų (trys gruodžio 13 d. ir reitingai)');
   assert.deepEqual(live, source);
   assert.ok(source.some((h) => h === 'reitingai.html'));
   // „Naujametinis turnyras“: paspaudus atsiveria trys registracijos nuorodos, be horizontalaus slinkimo
